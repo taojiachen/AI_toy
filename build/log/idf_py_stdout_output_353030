@@ -1,5 +1,0 @@
-[0/1] Re-running CMake...
--- Configuring incomplete, errors occurred!
-See also "/home/tjc/esp/develop/graduation_project/AI_toy/build/CMakeFiles/CMakeOutput.log".
-FAILED: build.ninja 
-/usr/bin/cmake -S/home/tjc/esp/develop/graduation_project/AI_toy -B/home/tjc/esp/develop/graduation_project/AI_toy/build

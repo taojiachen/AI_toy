@@ -2371,6 +2371,20 @@ CONFIG_WIFI_PROV_AUTOSTOP_TIMEOUT=30
 CONFIG_WIFI_PROV_STA_ALL_CHANNEL_SCAN=y
 # CONFIG_WIFI_PROV_STA_FAST_SCAN is not set
 # end of Wi-Fi Provisioning Manager
+
+#
+# AliYun MQTT Component Configuration
+#
+CONFIG_AliYun_MQTT_HOST_URL="mqtt://a1T80GJEE6L.iot-as-mqtt.cn-shanghai.aliyuncs.com:1883"
+CONFIG_AliYun_MQTT_PORT=1883
+CONFIG_AliYun_MQTT_CLIENT_ID="a1T80GJEE6L.toy01|securemode=2,signmethod=hmacsha256,timestamp=1733829091432|"
+CONFIG_AliYun_MQTT_USERNAME="toy01&a1T80GJEE6L"
+CONFIG_AliYun_MQTT_PASSWORD="55b70dc02ccfcbfcb7fe39e10e59446ab273338c60b6eb62ce8e957aeefbfcac"
+CONFIG_AliYun_PUBLISH_TOPIC_USER_POST="/sys/a1T80GJEE6L/toy01/thing/event/property/post"
+CONFIG_AliYun_SUBSCRIBE_TOPIC_USER_GET="/a1T80GJEE6L/toy01/user/get"
+CONFIG_AliYun_PUBLISH_TOPIC_USER_UPDATE="/a1T80GJEE6L/toy01/user/data"
+CONFIG_AliYun_PUBLISH_TOPIC_USER_POST_REPLY="/sys/a1T80GJEE6L/toy01/thing/event/property/post_reply"
+# end of AliYun MQTT Component Configuration
 # end of Component config
 
 CONFIG_IDF_EXPERIMENTAL_FEATURES=y
