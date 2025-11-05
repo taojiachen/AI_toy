@@ -1,0 +1,102 @@
+[1/14] Building C object esp-idf/mongoose/CMakeFiles/__idf_mongoose.dir/mongoose.c.obj
+FAILED: esp-idf/mongoose/CMakeFiles/__idf_mongoose.dir/mongoose.c.obj 
+/home/tjc/.espressif/tools/xtensa-esp-elf/esp-13.2.0_20240530/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc -DESP_PLATFORM -DIDF_VER=\"v5.3.1-dirty\" -DSOC_MMU_PAGE_SIZE=CONFIG_MMU_PAGE_SIZE -DSOC_XTAL_FREQ_MHZ=CONFIG_XTAL_FREQ -D_GLIBCXX_HAVE_POSIX_SEMAPHORE -D_GLIBCXX_USE_POSIX_SEMAPHORE -D_GNU_SOURCE -D_POSIX_READER_WRITER_LOCKS -Iconfig -I../components/mongoose -I/home/tjc/esp/esp-idf/components/newlib/platform_include -I/home/tjc/esp/esp-idf/components/freertos/config/include -I/home/tjc/esp/esp-idf/components/freertos/config/include/freertos -I/home/tjc/esp/esp-idf/components/freertos/config/xtensa/include -I/home/tjc/esp/esp-idf/components/freertos/FreeRTOS-Kernel/include -I/home/tjc/esp/esp-idf/components/freertos/FreeRTOS-Kernel/portable/xtensa/include -I/home/tjc/esp/esp-idf/components/freertos/FreeRTOS-Kernel/portable/xtensa/include/freertos -I/home/tjc/esp/esp-idf/components/freertos/esp_additions/include -I/home/tjc/esp/esp-idf/components/esp_hw_support/include -I/home/tjc/esp/esp-idf/components/esp_hw_support/include/soc -I/home/tjc/esp/esp-idf/components/esp_hw_support/include/soc/esp32s3 -I/home/tjc/esp/esp-idf/components/esp_hw_support/dma/include -I/home/tjc/esp/esp-idf/components/esp_hw_support/ldo/include -I/home/tjc/esp/esp-idf/components/esp_hw_support/port/esp32s3/. -I/home/tjc/esp/esp-idf/components/esp_hw_support/port/esp32s3/include -I/home/tjc/esp/esp-idf/components/heap/include -I/home/tjc/esp/esp-idf/components/log/include -I/home/tjc/esp/esp-idf/components/soc/include -I/home/tjc/esp/esp-idf/components/soc/esp32s3 -I/home/tjc/esp/esp-idf/components/soc/esp32s3/include -I/home/tjc/esp/esp-idf/components/hal/platform_port/include -I/home/tjc/esp/esp-idf/components/hal/esp32s3/include -I/home/tjc/esp/esp-idf/components/hal/include -I/home/tjc/esp/esp-idf/components/esp_rom/include -I/home/tjc/esp/esp-idf/components/esp_rom/include/esp32s3 -I/home/tjc/esp/esp-idf/components/esp_rom/esp32s3 -I/home/tjc/esp/esp-idf/components/esp_common/include -I/home/tjc/esp/esp-idf/components/esp_system/include -I/home/tjc/esp/esp-idf/components/esp_system/port/soc -I/home/tjc/esp/esp-idf/components/esp_system/port/include/private -I/home/tjc/esp/esp-idf/components/xtensa/esp32s3/include -I/home/tjc/esp/esp-idf/components/xtensa/include -I/home/tjc/esp/esp-idf/components/xtensa/deprecated_include -I/home/tjc/esp/esp-idf/components/lwip/include -I/home/tjc/esp/esp-idf/components/lwip/include/apps -I/home/tjc/esp/esp-idf/components/lwip/include/apps/sntp -I/home/tjc/esp/esp-idf/components/lwip/lwip/src/include -I/home/tjc/esp/esp-idf/components/lwip/port/include -I/home/tjc/esp/esp-idf/components/lwip/port/freertos/include -I/home/tjc/esp/esp-idf/components/lwip/port/esp32xx/include -I/home/tjc/esp/esp-idf/components/lwip/port/esp32xx/include/arch -I/home/tjc/esp/esp-idf/components/lwip/port/esp32xx/include/sys -mlongcalls  -fno-builtin-memcpy -fno-builtin-memset -fno-builtin-bzero -fno-builtin-stpcpy -fno-builtin-strncpy   -ffunction-sections -fdata-sections -Wall -Werror=all -Wno-error=unused-function -Wno-error=unused-variable -Wno-error=unused-but-set-variable -Wno-error=deprecated-declarations -Wextra -Wno-unused-parameter -Wno-sign-compare -Wno-enum-conversion -gdwarf-4 -ggdb -mdisable-hardware-atomics -O2 -fmacro-prefix-map=/home/tjc/esp/develop/graduation_project/AI_toy=. -fmacro-prefix-map=/home/tjc/esp/esp-idf=/IDF -fstrict-volatile-bitfields -fno-jump-tables -fno-tree-switch-conversion -std=gnu17 -Wno-old-style-declaration -MD -MT esp-idf/mongoose/CMakeFiles/__idf_mongoose.dir/mongoose.c.obj -MF esp-idf/mongoose/CMakeFiles/__idf_mongoose.dir/mongoose.c.obj.d -o esp-idf/mongoose/CMakeFiles/__idf_mongoose.dir/mongoose.c.obj   -c ../components/mongoose/mongoose.c
+In file included from ../components/mongoose/mongoose.c:20:
+../components/mongoose/mongoose.h:59:10: fatal error: mongoose_config.h: No such file or directory
+   59 | #include "mongoose_config.h"  // keep this include
+      |          ^~~~~~~~~~~~~~~~~~~
+compilation terminated.
+[2/14] Building C object esp-idf/app/CMakeFiles/__idf_app.dir/wifi/app_wifi_config.c.obj
+FAILED: esp-idf/app/CMakeFiles/__idf_app.dir/wifi/app_wifi_config.c.obj 
+/home/tjc/.espressif/tools/xtensa-esp-elf/esp-13.2.0_20240530/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc -DESP_PLATFORM -DIDF_VER=\"v5.3.1-dirty\" -DSOC_MMU_PAGE_SIZE=CONFIG_MMU_PAGE_SIZE -DSOC_XTAL_FREQ_MHZ=CONFIG_XTAL_FREQ -D_GLIBCXX_HAVE_POSIX_SEMAPHORE -D_GLIBCXX_USE_POSIX_SEMAPHORE -D_GNU_SOURCE -D_POSIX_READER_WRITER_LOCKS -Iconfig -I../app -I../app/wifi -I/home/tjc/esp/esp-idf/components/newlib/platform_include -I/home/tjc/esp/esp-idf/components/freertos/config/include -I/home/tjc/esp/esp-idf/components/freertos/config/include/freertos -I/home/tjc/esp/esp-idf/components/freertos/config/xtensa/include -I/home/tjc/esp/esp-idf/components/freertos/FreeRTOS-Kernel/include -I/home/tjc/esp/esp-idf/components/freertos/FreeRTOS-Kernel/portable/xtensa/include -I/home/tjc/esp/esp-idf/components/freertos/FreeRTOS-Kernel/portable/xtensa/include/freertos -I/home/tjc/esp/esp-idf/components/freertos/esp_additions/include -I/home/tjc/esp/esp-idf/components/esp_hw_support/include -I/home/tjc/esp/esp-idf/components/esp_hw_support/include/soc -I/home/tjc/esp/esp-idf/components/esp_hw_support/include/soc/esp32s3 -I/home/tjc/esp/esp-idf/components/esp_hw_support/dma/include -I/home/tjc/esp/esp-idf/components/esp_hw_support/ldo/include -I/home/tjc/esp/esp-idf/components/esp_hw_support/port/esp32s3/. -I/home/tjc/esp/esp-idf/components/esp_hw_support/port/esp32s3/include -I/home/tjc/esp/esp-idf/components/heap/include -I/home/tjc/esp/esp-idf/components/log/include -I/home/tjc/esp/esp-idf/components/soc/include -I/home/tjc/esp/esp-idf/components/soc/esp32s3 -I/home/tjc/esp/esp-idf/components/soc/esp32s3/include -I/home/tjc/esp/esp-idf/components/hal/platform_port/include -I/home/tjc/esp/esp-idf/components/hal/esp32s3/include -I/home/tjc/esp/esp-idf/components/hal/include -I/home/tjc/esp/esp-idf/components/esp_rom/include -I/home/tjc/esp/esp-idf/components/esp_rom/include/esp32s3 -I/home/tjc/esp/esp-idf/components/esp_rom/esp32s3 -I/home/tjc/esp/esp-idf/components/esp_common/include -I/home/tjc/esp/esp-idf/components/esp_system/include -I/home/tjc/esp/esp-idf/components/esp_system/port/soc -I/home/tjc/esp/esp-idf/components/esp_system/port/include/private -I/home/tjc/esp/esp-idf/components/xtensa/esp32s3/include -I/home/tjc/esp/esp-idf/components/xtensa/include -I/home/tjc/esp/esp-idf/components/xtensa/deprecated_include -I/home/tjc/esp/esp-idf/components/lwip/include -I/home/tjc/esp/esp-idf/components/lwip/include/apps -I/home/tjc/esp/esp-idf/components/lwip/include/apps/sntp -I/home/tjc/esp/esp-idf/components/lwip/lwip/src/include -I/home/tjc/esp/esp-idf/components/lwip/port/include -I/home/tjc/esp/esp-idf/components/lwip/port/freertos/include -I/home/tjc/esp/esp-idf/components/lwip/port/esp32xx/include -I/home/tjc/esp/esp-idf/components/lwip/port/esp32xx/include/arch -I/home/tjc/esp/esp-idf/components/lwip/port/esp32xx/include/sys -mlongcalls  -fno-builtin-memcpy -fno-builtin-memset -fno-builtin-bzero -fno-builtin-stpcpy -fno-builtin-strncpy   -ffunction-sections -fdata-sections -Wall -Werror=all -Wno-error=unused-function -Wno-error=unused-variable -Wno-error=unused-but-set-variable -Wno-error=deprecated-declarations -Wextra -Wno-unused-parameter -Wno-sign-compare -Wno-enum-conversion -gdwarf-4 -ggdb -mdisable-hardware-atomics -O2 -fmacro-prefix-map=/home/tjc/esp/develop/graduation_project/AI_toy=. -fmacro-prefix-map=/home/tjc/esp/esp-idf=/IDF -fstrict-volatile-bitfields -fno-jump-tables -fno-tree-switch-conversion -std=gnu17 -Wno-old-style-declaration -MD -MT esp-idf/app/CMakeFiles/__idf_app.dir/wifi/app_wifi_config.c.obj -MF esp-idf/app/CMakeFiles/__idf_app.dir/wifi/app_wifi_config.c.obj.d -o esp-idf/app/CMakeFiles/__idf_app.dir/wifi/app_wifi_config.c.obj   -c ../app/wifi/app_wifi_config.c
+../app/wifi/app_wifi_config.c:5:10: fatal error: esp_wifi.h: No such file or directory
+    5 | #include "esp_wifi.h"
+      |          ^~~~~~~~~~~~
+compilation terminated.
+[3/14] Performing build step for 'bootloader'
+[1/1] cd /home/tjc/esp/develop/graduation_project/AI_toy/build/bootloader/esp-idf/esptool_py && /home/tjc/.espressif/python_env/idf5.3_py3.8_env/bin/python /home/tjc/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x0 /home/tjc/esp/develop/graduation_project/AI_toy/build/bootloader/bootloader.bin
+Bootloader binary size 0x5810 bytes. 0x27f0 bytes (31%) free.
+[4/12] Building C object esp-idf/app/CMakeFiles/__idf_app.dir/websocket.c.obj
+FAILED: esp-idf/app/CMakeFiles/__idf_app.dir/websocket.c.obj 
+/home/tjc/.espressif/tools/xtensa-esp-elf/esp-13.2.0_20240530/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc -DESP_PLATFORM -DIDF_VER=\"v5.3.1-dirty\" -DSOC_MMU_PAGE_SIZE=CONFIG_MMU_PAGE_SIZE -DSOC_XTAL_FREQ_MHZ=CONFIG_XTAL_FREQ -D_GLIBCXX_HAVE_POSIX_SEMAPHORE -D_GLIBCXX_USE_POSIX_SEMAPHORE -D_GNU_SOURCE -D_POSIX_READER_WRITER_LOCKS -Iconfig -I../app -I../app/wifi -I/home/tjc/esp/esp-idf/components/newlib/platform_include -I/home/tjc/esp/esp-idf/components/freertos/config/include -I/home/tjc/esp/esp-idf/components/freertos/config/include/freertos -I/home/tjc/esp/esp-idf/components/freertos/config/xtensa/include -I/home/tjc/esp/esp-idf/components/freertos/FreeRTOS-Kernel/include -I/home/tjc/esp/esp-idf/components/freertos/FreeRTOS-Kernel/portable/xtensa/include -I/home/tjc/esp/esp-idf/components/freertos/FreeRTOS-Kernel/portable/xtensa/include/freertos -I/home/tjc/esp/esp-idf/components/freertos/esp_additions/include -I/home/tjc/esp/esp-idf/components/esp_hw_support/include -I/home/tjc/esp/esp-idf/components/esp_hw_support/include/soc -I/home/tjc/esp/esp-idf/components/esp_hw_support/include/soc/esp32s3 -I/home/tjc/esp/esp-idf/components/esp_hw_support/dma/include -I/home/tjc/esp/esp-idf/components/esp_hw_support/ldo/include -I/home/tjc/esp/esp-idf/components/esp_hw_support/port/esp32s3/. -I/home/tjc/esp/esp-idf/components/esp_hw_support/port/esp32s3/include -I/home/tjc/esp/esp-idf/components/heap/include -I/home/tjc/esp/esp-idf/components/log/include -I/home/tjc/esp/esp-idf/components/soc/include -I/home/tjc/esp/esp-idf/components/soc/esp32s3 -I/home/tjc/esp/esp-idf/components/soc/esp32s3/include -I/home/tjc/esp/esp-idf/components/hal/platform_port/include -I/home/tjc/esp/esp-idf/components/hal/esp32s3/include -I/home/tjc/esp/esp-idf/components/hal/include -I/home/tjc/esp/esp-idf/components/esp_rom/include -I/home/tjc/esp/esp-idf/components/esp_rom/include/esp32s3 -I/home/tjc/esp/esp-idf/components/esp_rom/esp32s3 -I/home/tjc/esp/esp-idf/components/esp_common/include -I/home/tjc/esp/esp-idf/components/esp_system/include -I/home/tjc/esp/esp-idf/components/esp_system/port/soc -I/home/tjc/esp/esp-idf/components/esp_system/port/include/private -I/home/tjc/esp/esp-idf/components/xtensa/esp32s3/include -I/home/tjc/esp/esp-idf/components/xtensa/include -I/home/tjc/esp/esp-idf/components/xtensa/deprecated_include -I/home/tjc/esp/esp-idf/components/lwip/include -I/home/tjc/esp/esp-idf/components/lwip/include/apps -I/home/tjc/esp/esp-idf/components/lwip/include/apps/sntp -I/home/tjc/esp/esp-idf/components/lwip/lwip/src/include -I/home/tjc/esp/esp-idf/components/lwip/port/include -I/home/tjc/esp/esp-idf/components/lwip/port/freertos/include -I/home/tjc/esp/esp-idf/components/lwip/port/esp32xx/include -I/home/tjc/esp/esp-idf/components/lwip/port/esp32xx/include/arch -I/home/tjc/esp/esp-idf/components/lwip/port/esp32xx/include/sys -mlongcalls  -fno-builtin-memcpy -fno-builtin-memset -fno-builtin-bzero -fno-builtin-stpcpy -fno-builtin-strncpy   -ffunction-sections -fdata-sections -Wall -Werror=all -Wno-error=unused-function -Wno-error=unused-variable -Wno-error=unused-but-set-variable -Wno-error=deprecated-declarations -Wextra -Wno-unused-parameter -Wno-sign-compare -Wno-enum-conversion -gdwarf-4 -ggdb -mdisable-hardware-atomics -O2 -fmacro-prefix-map=/home/tjc/esp/develop/graduation_project/AI_toy=. -fmacro-prefix-map=/home/tjc/esp/esp-idf=/IDF -fstrict-volatile-bitfields -fno-jump-tables -fno-tree-switch-conversion -std=gnu17 -Wno-old-style-declaration -MD -MT esp-idf/app/CMakeFiles/__idf_app.dir/websocket.c.obj -MF esp-idf/app/CMakeFiles/__idf_app.dir/websocket.c.obj.d -o esp-idf/app/CMakeFiles/__idf_app.dir/websocket.c.obj   -c ../app/websocket.c
+../app/websocket.c: In function 'ws_event_handler':
+../app/websocket.c:13:10: error: 'MG_EV_CONNECT' undeclared (first use in this function)
+   13 |     case MG_EV_CONNECT:
+      |          ^~~~~~~~~~~~~
+../app/websocket.c:13:10: note: each undeclared identifier is reported only once for each function it appears in
+../app/websocket.c:15:14: error: variable 'opts' has initializer but incomplete type
+   15 |       struct mg_ws_handshake_opts opts = {.uri = WS_SERVER};
+      |              ^~~~~~~~~~~~~~~~~~~~
+../app/websocket.c:15:44: error: 'struct mg_ws_handshake_opts' has no member named 'uri'
+   15 |       struct mg_ws_handshake_opts opts = {.uri = WS_SERVER};
+      |                                            ^~~
+../app/websocket.c:15:50: error: 'WS_SERVER' undeclared (first use in this function)
+   15 |       struct mg_ws_handshake_opts opts = {.uri = WS_SERVER};
+      |                                                  ^~~~~~~~~
+../app/websocket.c:15:50: warning: excess elements in struct initializer
+../app/websocket.c:15:50: note: (near initialization for 'opts')
+../app/websocket.c:15:35: error: storage size of 'opts' isn't known
+   15 |       struct mg_ws_handshake_opts opts = {.uri = WS_SERVER};
+      |                                   ^~~~
+../app/websocket.c:16:7: error: implicit declaration of function 'mg_ws_connect' [-Werror=implicit-function-declaration]
+   16 |       mg_ws_connect(c, &opts);  // 发送握手请求
+      |       ^~~~~~~~~~~~~
+../app/websocket.c:20:10: error: 'MG_EV_WEBSOCKET_HANDSHAKE_DONE' undeclared (first use in this function)
+   20 |     case MG_EV_WEBSOCKET_HANDSHAKE_DONE:
+      |          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+../app/websocket.c:24:7: error: implicit declaration of function 'mg_ws_send' [-Werror=implicit-function-declaration]
+   24 |       mg_ws_send(c, "ESP32-S3 WS Ready", strlen("ESP32-S3 WS Ready"), WEBSOCKET_OP_TEXT);
+      |       ^~~~~~~~~~
+../app/websocket.c:24:71: error: 'WEBSOCKET_OP_TEXT' undeclared (first use in this function)
+   24 |       mg_ws_send(c, "ESP32-S3 WS Ready", strlen("ESP32-S3 WS Ready"), WEBSOCKET_OP_TEXT);
+      |                                                                       ^~~~~~~~~~~~~~~~~
+../app/websocket.c:28:10: error: 'MG_EV_WEBSOCKET_FRAME' undeclared (first use in this function)
+   28 |     case MG_EV_WEBSOCKET_FRAME: {
+      |          ^~~~~~~~~~~~~~~~~~~~~
+../app/websocket.c:30:16: error: invalid use of undefined type 'struct mg_ws_frame'
+   30 |       if (frame->op == WEBSOCKET_OP_TEXT) {  // 仅处理文本帧（可根据需求加二进制帧）
+      |                ^~
+../app/websocket.c:32:39: error: invalid use of undefined type 'struct mg_ws_frame'
+   32 |         strncpy(recv_buf, (char*)frame->data, frame->size);
+      |                                       ^~
+../app/websocket.c:32:52: error: invalid use of undefined type 'struct mg_ws_frame'
+   32 |         strncpy(recv_buf, (char*)frame->data, frame->size);
+      |                                                    ^~
+../app/websocket.c:44:10: error: 'MG_EV_CLOSE' undeclared (first use in this function)
+   44 |     case MG_EV_CLOSE:
+      |          ^~~~~~~~~~~
+../app/websocket.c:48:7: error: implicit declaration of function 'mg_connect' [-Werror=implicit-function-declaration]
+   48 |       mg_connect(&mgr, WS_SERVER, ws_event_handler, NULL);  // 重新发起连接
+      |       ^~~~~~~~~~
+../app/websocket.c:15:35: warning: unused variable 'opts' [-Wunused-variable]
+   15 |       struct mg_ws_handshake_opts opts = {.uri = WS_SERVER};
+      |                                   ^~~~
+../app/websocket.c: In function 'mg_task':
+../app/websocket.c:56:3: error: implicit declaration of function 'mg_mgr_init' [-Werror=implicit-function-declaration]
+   56 |   mg_mgr_init(&mgr);
+      |   ^~~~~~~~~~~
+../app/websocket.c:60:20: error: 'WS_SERVER' undeclared (first use in this function)
+   60 |   mg_connect(&mgr, WS_SERVER, ws_event_handler, NULL);
+      |                    ^~~~~~~~~
+../app/websocket.c:64:5: error: implicit declaration of function 'mg_mgr_poll' [-Werror=implicit-function-declaration]
+   64 |     mg_mgr_poll(&mgr, 1000);  // 每1秒轮询一次，单位ms
+      |     ^~~~~~~~~~~
+../app/websocket.c:70:73: error: 'WEBSOCKET_OP_TEXT' undeclared (first use in this function)
+   70 |       mg_ws_send(ws_conn, "ESP32 Heartbeat", strlen("ESP32 Heartbeat"), WEBSOCKET_OP_TEXT);
+      |                                                                         ^~~~~~~~~~~~~~~~~
+../app/websocket.c:75:3: error: implicit declaration of function 'mg_mgr_free' [-Werror=implicit-function-declaration]
+   75 |   mg_mgr_free(&mgr);
+      |   ^~~~~~~~~~~
+../app/websocket.c: In function 'ws_start':
+../app/websocket.c:81:44: error: 'TASK_STACK_SIZE' undeclared (first use in this function)
+   81 |   xTaskCreate(mg_task, "mongoose_ws_task", TASK_STACK_SIZE, NULL, TASK_PRIORITY, &mg_task_handle);
+      |                                            ^~~~~~~~~~~~~~~
+../app/websocket.c:81:67: error: 'TASK_PRIORITY' undeclared (first use in this function)
+   81 |   xTaskCreate(mg_task, "mongoose_ws_task", TASK_STACK_SIZE, NULL, TASK_PRIORITY, &mg_task_handle);
+      |                                                                   ^~~~~~~~~~~~~
+../app/websocket.c: At top level:
+../app/websocket.c:5:22: error: storage size of 'mgr' isn't known
+    5 | static struct mg_mgr mgr;
+      |                      ^~~
+cc1: some warnings being treated as errors
+ninja: build stopped: subcommand failed.

@@ -1,0 +1,11 @@
+{
+    "files.associations": {
+        "opus.h": "c",
+        "ogg.h": "c",
+        "os_types.h": "c",
+        "websocket.h": "c",
+        "app_wifi_config.h": "c",
+        "mongoose.h": "c",
+        "stdio.h": "c"
+    }
+}

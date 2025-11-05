@@ -1,0 +1,9 @@
+CMake Error at /home/tjc/esp/esp-idf/tools/cmake/project.cmake:465 (message):
+  Directory specified in EXTRA_COMPONENT_DIRS doesn't exist:
+  /home/tjc/esp/develop/graduation_project/AI_toy/app
+Call Stack (most recent call first):
+  /home/tjc/esp/esp-idf/tools/cmake/project.cmake:549 (__project_init)
+  CMakeLists.txt:8 (project)
+
+
+ninja: error: rebuilding 'build.ninja': subcommand failed

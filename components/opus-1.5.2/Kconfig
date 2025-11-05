@@ -1,0 +1,133 @@
+menu "Opus Codec Memory Allocation"
+    depends on USE_OPUS
+
+    choice
+        prompt "Opus Memory Allocation Strategy"
+        default NONTHREADSAFE_PSEUDOSTACK
+        help
+            Select the memory allocation method for Opus codec.
+            These options map directly to Opus's native macros.
+
+        config NONTHREADSAFE_PSEUDOSTACK
+            bool "Use non-threadsafe pseudostack (NONTHREADSAFE_PSEUDOSTACK)"
+            help
+                Define NONTHREADSAFE_PSEUDOSTACK for a simple pseudostack.
+                Pros: Avoids VLA/alloca, works on C89 platforms.
+                Cons: Not thread-safe, limited by pseudostack size.
+                (Defined macro: NONTHREADSAFE_PSEUDOSTACK)
+
+        config VAR_ARRAYS
+            bool "Use C99 Variable-Length Arrays (VAR_ARRAYS)"
+            help
+                Define VAR_ARRAYS to use C99 VAR_ARRAYS(VLA) for temporary buffers.
+                Pros: No dynamic allocation, efficient for small buffers.
+                Cons: Requires C99 support, stack usage may vary.
+                (Defined macro: VAR_ARRAYS)
+
+        config USE_ALLOCA
+            bool "Use alloca() for stack allocation (USE_ALLOCA)"
+            help
+                Define USE_ALLOCA to use alloca() for temporary memory.
+                Pros: Allocates on stack, faster than heap.
+                Cons: Stack overflow risk, not supported on all platforms.
+                (Defined macro: USE_ALLOCA)
+    endchoice
+
+    config OPUS_FILE_BUFF_SIZE
+        int "Opus File Read Buffer Size (bytes)"
+        default 960
+        range 256 4096
+        help
+            Buffer size for reading Opus file data (maps to OPUS_FILE_BUFF_SIZE macro).
+            Default 960 bytes: matches typical Opus frame size for 24kHz mono.
+            Adjust based on your file system's read efficiency (larger = fewer reads).
+
+    config OPUS_FRAME_SAMPLES_MAX
+        int "Opus Max Frame Samples"
+        default 2880
+        range 20 2880
+        help
+            Maximum number of samples per Opus frame (maps to OPUS_FRAME_SAMPLES_MAX macro).
+            Default 480 samples: 20ms frame @ 24kHz mono (24000 Hz * 0.02s = 480).
+            Must match the maximum frame duration used by your Opus file.
+
+    config OPUS_AUDIO_SAMPLE_RATE
+        int "Opus Audio Sample Rate (Hz)"
+        default 24000
+        range 8000 48000
+        help
+            Sample rate of Opus audio (directly maps to OPUS_AUDIO_SAMPLE_RATE macro).
+            Must be one of Opus-supported rates: 8000, 12000, 16000, 24000, 48000 Hz.
+            (Common choices: 24000 for fullband, 48000 for superwideband)
+
+    config OPUS_AUDIO_CHANNELS
+        int "Opus Audio Channels"
+        default 1
+        range 1 2
+        help
+            Set Channels number
+
+    config GLOBAL_STACK_SIZE
+        int "Pseudostack Size (bytes)"
+        depends on NONTHREADSAFE_PSEUDOSTACK
+        default 8192
+        range 1024 16384
+        help
+            Set size of the pseudostack when using NONTHREADSAFE_PSEUDOSTACK.
+            Must match the maximum buffer size needed by Opus (typically 8192 bytes).
+            (Maps to PSEUDOSTACK_SIZE macro)
+
+    config OPUS_FRAME_SAMPLES_NUMBER
+        int "Opus I2S frame samples number"
+        default 960
+        range 256 4096
+        help
+            The configuration of I2S DMA, I2S0_DMA_FRAME_NUM
+
+    config OPUS_ENCODER
+        bool "enable opus encoder"
+        default n
+
+    config OPUS_DECODER
+        bool "enable opus decoder"
+        default y
+
+    config USE_DYNAMIC_CALCULATION
+        bool "USE_DYNAMIC_CALCULATION INSTEAD OF USING PREDEFINED STATIC CONSTANTS."
+        default n
+        help
+        Enable dynamic calculation instead of using predefined static constants.
+        When enabled, the system will compute values on-the-fly during runtime 
+        rather than relying on precomputed static constants. This may increase 
+        runtime computation overhead but reduces memory usage for stored constants.
+        Defaults to 'n' (use static constants).
+
+    config PRUNE_UNUSED_CODE_BRANCHES
+        bool "PRUNE_UNUSED_CODE_BRANCHES"
+        default n
+        help
+        Remove unused code branches during compilation. When enabled, the build 
+        system will strip out code branches that are determined to be unnecessary 
+        for the current configuration, reducing the final binary size. 
+        Defaults to 'n' (retain all code branches).
+
+    config ENABLE_ASSERTIONS
+        bool "ENABLE_ASSERTIONS"
+        default n
+
+    choice
+        prompt "OPUS Instruction Set Optimization"
+        default OPUS_NO_ACCEL
+
+        config OPUS_NO_ACCEL
+            bool "No accelerated instruction set (use generic code)"
+            help
+                Use generic C code without any architecture-specific optimization.
+
+        config OPUS_XTENSA_LX7
+            bool "Xtensa LX7 optimization"
+            help
+                Enable Xtensa LX7 DSP instruction set optimization for OPUS.
+                Used in Xtensa LX7-based cores (e.g., ESP32's Tensilica LX7).
+    endchoice
+endmenu

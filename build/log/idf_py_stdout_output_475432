@@ -1,0 +1,198 @@
+Jb���m[0m
+[0;32mI (154) esp_image: segment 3: padd�ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x1 (POWERON),boot:0x29 (SPI_FAST_FLASH_BOOT)
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x1918
+load:0x403c8700,len:0x4
+load:0x403c8704,len:0xe5c
+load:0x403cb700,len:0x303c
+entry 0x403c893c
+[0;32mI (27) boot: ESP-IDF v5.3.1-dirty 2nd stage bootloader[0m
+[0;32mI (27) boot: compile time Nov  4 2025 20:10:18[0m
+[0;32mI (27) boot: Multicore bootloader[0m
+[0;32mI (30) boot: chip revision: v0.2[0m
+[0;32mI (34) qio_mode: Enabling default flash chip QIO[0m
+[0;32mI (40) boot.esp32s3: Boot SPI Speed : 80MHz[0m
+[0;32mI (44) boot.esp32s3: SPI Mode       : QIO[0m
+[0;32mI (49) boot.esp32s3: SPI Flash Size : 16MB[0m
+[0;32mI (54) boot: Enabling RNG early entropy source...[0m
+[0;32mI (59) boot: Partition Table:[0m
+[0;32mI (63) boot: ## Label            Usage          Type ST Offset   Length[0m
+[0;32mI (70) boot:  0 nvs              WiFi data        01 02 00010000 00006000[0m
+[0;32mI (78) boot:  1 fctry            WiFi data        01 02 00016000 00006000[0m
+[0;32mI (85) boot:  2 factory          factory app      00 00 00020000 00400000[0m
+[0;32mI (93) boot:  3 storage          Unknown data     01 82 00420000 00600000[0m
+[0;32mI (100) boot:  4 model            Unknown data     01 82 00a20000 0050c000[0m
+[0;32mI (108) boot: End of partition table[0m
+[0;32mI (112) esp_image: segment 0: paddr=00020020 vaddr=3c0a0020 size=21be0h (138208) map[0m
+[0;32mI (141) esp_image: segment 1: paddr=00041c08 vaddr=3fc96b00 size=05b64h ( 23396) load[0m
+[0;32mI (146) esp_image: segment 2: paddr=00047774 vaddr=40374000 size=088a4h ( 34980) load[0m
+[0;32mI (154) esp_image: segment 3: paddr=00050020 vaddr=42000020 size=9153ch (595260) map[0m
+[0;32mI (246) esp_image: segment 4: paddr=000e1564 vaddr=4037c8a4 size=0a1d8h ( 41432) load[0m
+[0;32mI (262) boot: Loaded app from partition at offset 0x20000[0m
+[0;32mI (262) boot: Disabling RNG early entropy source...[0m
+[0;33mW (274) flash HPM: HPM mode is optional feature that depends on flash model. Read Docs First![0m
+[0;33mW (274) flash HPM: HPM mode with DC adjustment is disabled. Some flash models may not be supported. Read Docs First![0m
+[0;33mW (283) flash HPM: High performance mode of this flash model hasn't been supported.[0m
+[0;32mI (292) MSPI Timing: Flash timing tuning index: 2[0m
+[0;32mI (297) octal_psram: vendor id    : 0x0d (AP)[0m
+[0;32mI (302) octal_psram: dev id       : 0x02 (generation 3)[0m
+[0;32mI (308) octal_psram: density      : 0x03 (64 Mbit)[0m
+[0;32mI (313) octal_psram: good-die     : 0x01 (Pass)[0m
+[0;32mI (319) octal_psram: Latency      : 0x01 (Fixed)[0m
+[0;32mI (324) octal_psram: VCC          : 0x01 (3V)[0m
+[0;32mI (329) octal_psram: SRF          : 0x01 (Fast Refresh)[0m
+[0;32mI (335) octal_psram: BurstType    : 0x01 (Hybrid Wrap)[0m
+[0;32mI (341) octal_psram: BurstLen     : 0x01 (32 Byte)[0m
+[0;32mI (346) octal_psram: Readlatency  : 0x02 (10 cycles@Fixed)[0m
+[0;32mI (352) octal_psram: DriveStrength: 0x00 (1/1)[0m
+[0;32mI (364) MSPI Timing: PSRAM timing tuning index: 1[0m
+[0;32mI (364) esp_psram: Found 8MB PSRAM device[0m
+[0;32mI (368) esp_psram: Speed: 120MHz[0m
+[0;32mI (380) mmu_psram: Read only data copied and mapped to SPIRAM[0m
+[0;32mI (416) mmu_psram: Instructions copied and mapped to SPIRAM[0m
+[0;32mI (416) cpu_start: Multicore app[0m
+[0;32mI (606) esp_psram: SPI SRAM memory test OK[0m
+[0;32mI (615) cpu_start: Pro cpu start user code[0m
+[0;32mI (615) cpu_start: cpu freq: 240000000 Hz[0m
+[0;32mI (615) app_init: Application information:[0m
+[0;32mI (618) app_init: Project name:     AI_toy[0m
+[0;32mI (622) app_init: App version:      1[0m
+[0;32mI (627) app_init: Compile time:     Nov  4 2025 21:32:56[0m
+[0;32mI (633) app_init: ELF file SHA256:  91cd6f346...[0m
+[0;32mI (638) app_init: ESP-IDF:          v5.3.1-dirty[0m
+[0;32mI (643) efuse_init: Min chip rev:     v0.0[0m
+[0;32mI (648) efuse_init: Max chip rev:     v0.99 [0m
+[0;32mI (653) efuse_init: Chip rev:         v0.2[0m
+[0;32mI (658) heap_init: Initializing. RAM available for dynamic allocation:[0m
+[0;32mI (665) heap_init: At 3FCA0348 len 000493C8 (292 KiB): RAM[0m
+[0;32mI (671) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM[0m
+[0;32mI (677) heap_init: At 600FE100 len 00001EE8 (7 KiB): RTCRAM[0m
+[0;32mI (684) esp_psram: Adding pool of 7360K of PSRAM memory to heap allocator[0m
+[0;32mI (691) spi_flash: detected chip: generic[0m
+[0;32mI (696) spi_flash: flash io: qio[0m
+[0;32mI (700) sleep: Configure to isolate all GPIO pins in sleep state[0m
+[0;32mI (706) sleep: Enable automatic switching of GPIO sleep configuration[0m
+[0;32mI (713) coexist: coex firmware version: 4482466[0m
+[0;32mI (734) coexist: coexist rom version e7ae62f[0m
+[0;32mI (734) main_task: Started on CPU0[0m
+[0;32mI (735) esp_psram: Reserving pool of 32K of internal memory for DMA/internal allocations[0m
+[0;32mI (740) main_task: Calling app_main()[0m
+[0;32mI (752) pp: pp rom version: e7ae62f[0m
+[0;32mI (752) net80211: net80211 rom version: e7ae62f[0m
+[0;32mI (755) wifi:wifi driver task: 3fcb24b0, prio:23, stack:6656, core=0[0m
+[0;32mI (765) wifi:wifi firmware version: ccaebfa[0m
+[0;32mI (765) wifi:wifi certification version: v7.0[0m
+[0;32mI (768) wifi:config NVS flash: enabled[0m
+[0;32mI (772) wifi:config nano formating: disabled[0m
+[0;32mI (776) wifi:Init data frame dynamic rx buffer num: 6[0m
+[0;32mI (780) wifi:Init static rx mgmt buffer num: 5[0m
+[0;32mI (785) wifi:Init management short buffer num: 6[0m
+[0;32mI (789) wifi:Init static tx buffer num: 16[0m
+[0;32mI (793) wifi:Init tx cache buffer num: 32[0m
+[0;32mI (796) wifi:Init static tx FG buffer num: 2[0m
+[0;32mI (800) wifi:Init static rx buffer size: 1600[0m
+[0;32mI (805) wifi:Init static rx buffer num: 3[0m
+[0;32mI (808) wifi:Init dynamic rx buffer num: 6[0m
+[0;32mI (812) wifi_init: accept mbox: 6[0m
+[0;32mI (816) wifi_init: tcpip mbox: 16[0m
+[0;32mI (820) wifi_init: udp mbox: 6[0m
+[0;32mI (824) wifi_init: tcp mbox: 6[0m
+[0;32mI (828) wifi_init: tcp tx win: 5760[0m
+[0;32mI (832) wifi_init: tcp rx win: 5760[0m
+[0;32mI (836) wifi_init: tcp mss: 1440[0m
+[0;32mI (840) wifi_init: WiFi/LWIP prefer SPIRAM[0m
+[0;32mI (845) wifi_config: STA trying to connect: SSID=TJC[0m
+[0;32mI (851) phy_init: phy_version 680,a6008b2,Jun  4 2024,16:41:10[0m
+[0;32mI (889) wifi:mode : sta (f0:9e:9e:22:22:dc)[0m
+[0;32mI (889) wifi:enable tsf[0m
+[0;33mW (890) wifi:Haven't to connect to a suitable AP now![0m
+[0;32mI (891) wifi_config: STA started, trying to connect[0m
+[0;33mW (995) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (1095) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (1195) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (1295) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (1395) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (1495) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (1595) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (1695) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (1795) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (1895) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (1995) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (2095) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (2195) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (2295) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (2395) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (2495) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (2595) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (2695) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (2795) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (2895) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (2995) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (3095) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (3195) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (3295) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (3296) wifi_config: STA disconnected, reconnecting[0m
+[0;33mW (3395) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (3495) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (3595) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (3695) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (3795) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (3895) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (3995) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (4095) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (4195) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (4295) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (4395) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (4495) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (4595) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (4695) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (4795) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (4895) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (4995) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (5095) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (5195) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (5295) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (5395) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (5495) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (5595) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (5695) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (5701) wifi_config: STA disconnected, reconnecting[0m
+[0;33mW (5795) wifi:Haven't to connect to a suitable AP now![0m
+[0;33mW (5895) wifi_config: STA connect timeout (5s), switch to AP mode[0m
+[0;32mI (5895) wifi:flush txq[0m
+[0;32mI (5895) wifi:stop sw txq[0m
+[0;32mI (5895) wifi:lmac stop hw txq[0m
+[0;32mI (5901) wifi:mode : softAP (f0:9e:9e:22:22:dd)[0m
+[0;32mI (5903) wifi:Total power save buffer number: 8[0m
+[0;32mI (5906) wifi:Init max length of beacon: 752/752[0m
+[0;32mI (5910) wifi:Init max length of beacon: 752/752[0m
+[0;32mI (5915) wifi_config: WiFi AP started: SSID=ESP32_Config, Password=12345678[0m
+[0;32mI (5915) esp_netif_lwip: DHCP server started on interface WIFI_AP_DEF with IP: 192.168.4.1[0m
+1388   3 mongoose.c:4169:mg_mgr_init    MG_IO_SIZE: 4096, TLS: none
+1388   3 mongoose.c:4086:mg_listen      1 54 http://0.0.0.0:80
+[0;32mI (5943) wifi_config: Mongoose task started[0m
+[0;32mI (5948) wifi_config: Mongoose HTTP server started on port 80[0m
+[0;32mI (5954) main_task: Returned from app_main()[0m
+[0;32mI (18651) wifi:new:<1,1>, old:<1,1>, ap:<1,1>, sta:<255,255>, prof:1, snd_ch_cfg:0x0[0m
+[0;32mI (18652) wifi:station: e2:b8:74:52:8e:d2 join, AID=1, bgn, 40U[0m
+[0;32mI (18921) esp_netif_lwip: DHCP server assigned IP to a client, IP is: 192.168.4.2[0m
+dac0   3 mongoose.c:9337:accept_conn    2 55 accepted 192.168.4.2:41692 -> 0.0.0.0:80
+dac0   3 mongoose.c:9188:read_conn      2 55 0:0:0 480 err 0
+dac0   3 mongoose.c:9198:write_conn     2 55 snd 1157/4096 rcv 0/4096 n=1157 err=0
+dac0   3 mongoose.c:9188:read_conn      2 55 0:0:0 420 err 0
+dac0   3 mongoose.c:9198:write_conn     2 55 snd 56/4096 rcv 0/4096 n=56 err=0
+ee48   3 mongoose.c:9188:read_conn      2 55 0:0:0 -1 err 128
+ee48   3 mongoose.c:4026:mg_close_conn  2 55 closed
+10d88  3 mongoose.c:9337:accept_conn    3 55 accepted 192.168.4.2:57732 -> 0.0.0.0:80
+10d88  3 mongoose.c:9188:read_conn      3 55 0:0:0 480 err 0
+10d88  3 mongoose.c:9198:write_conn     3 55 snd 1157/4096 rcv 0/4096 n=1157 err=0
+10d88  3 mongoose.c:9188:read_conn      3 55 0:0:0 420 err 0
+10d88  3 mongoose.c:9198:write_conn     3 55 snd 56/4096 rcv 0/4096 n=56 err=0
+13c68  3 mongoose.c:9188:read_conn      3 55 0:0:0 -1 err 128
+13c68  3 mongoose.c:4026:mg_close_conn  3 55 closed
+[0;33mW (490646) wifi:inactive timer: now=1d3eaca2 last_rx_time=b4898ed diff=4991b, aid[1]e2:b8:74:52:8e:d2 leave[0m
+[0;32mI (490683) wifi:station: e2:b8:74:52:8e:d2 leave, AID = 1, reason = 4, bss_flags is 232563, bss:0x3c0e04a8[0m
+[0;32mI (490683) wifi:new:<1,0>, old:<1,1>, ap:<1,1>, sta:<255,255>, prof:1, snd_ch_cfg:0x0[0m
