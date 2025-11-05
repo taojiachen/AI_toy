@@ -12,7 +12,7 @@ file(GLOB_RECURSE ADD_SRCS
 idf_component_register(
     SRCS ${ADD_SRCS}
     INCLUDE_DIRS ${ADD_INCLUDE}
-    REQUIRES lwip esp_wifi esp_event
+    REQUIRES esp_wifi esp_event app_update esp_timer
 )
 
 target_compile_options(${COMPONENT_LIB} PRIVATE

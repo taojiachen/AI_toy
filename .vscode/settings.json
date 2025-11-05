@@ -6,6 +6,7 @@
         "websocket.h": "c",
         "app_wifi_config.h": "c",
         "mongoose.h": "c",
-        "stdio.h": "c"
+        "stdio.h": "c",
+        "mongoose_config.h": "c"
     }
 }
