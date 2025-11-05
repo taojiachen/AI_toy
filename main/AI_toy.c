@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <stdio.h>
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -16,6 +15,10 @@
 #include <esp_psram.h>
 #include "app_wifi_config.h"
 #include "websocket.h"
+#include "app_sntp.h"
+#include "app_aliyun_mqtt.h"
+
+static const char *TAG = "main";
 
 void app_main(void)
 {
@@ -24,5 +27,11 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
     wifi_init();
-    ws_start();
+    app_sntp_init();
+    websocket_client_init();
+    while (1)
+    {
+        vTaskDelay(5000 / portTICK_PERIOD_MS);
+        ESP_LOGI(TAG, "Free memory after start: %d bytes", heap_caps_get_total_size(MALLOC_CAP_INTERNAL));
+    }
 }
