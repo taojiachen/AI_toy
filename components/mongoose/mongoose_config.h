@@ -17,6 +17,5 @@
 // 3. 适配 ESP32 底层函数（避免函数未定义）
 #define MG_MILLIS() (esp_timer_get_time() / 1000)  // 时间函数：毫秒级
 #define MG_SOCKET_ERROR (-1)  // 适配 ESP32 socket 错误码
-#define closesocket(x) close(x)  // 适配 ESP32 关闭 socket 函数
 
 #endif // MONGOOSE_CONFIG_H
