@@ -2,7 +2,7 @@
 #define MONGOOSE_CONFIG_H
 
 // 1. 必须添加：指定 ESP32 平台架构（关键）
-#define MG_ARCH 32  // 32 对应 ESP32/ARM 架构（Mongoose 官方定义）
+#define MG_ARCH MG_ARCH_ESP32  // 32 对应 ESP32/ARM 架构（Mongoose 官方定义）
 #define MG_PLATFORM "ESP32"  // 可选，标识平台名称
 
 // 2. 基础功能配置（启用需要的模块，关闭不需要的）
