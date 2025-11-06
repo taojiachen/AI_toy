@@ -7,6 +7,10 @@
         "app_wifi_config.h": "c",
         "mongoose.h": "c",
         "stdio.h": "c",
-        "mongoose_config.h": "c"
+        "mongoose_config.h": "c",
+        "config_psa.h": "c",
+        "check_config.h": "c",
+        "entropy.h": "c",
+        "debug.h": "c"
     }
 }
