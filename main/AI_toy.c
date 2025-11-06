@@ -28,7 +28,7 @@ void app_main(void)
 
     wifi_init();
     app_sntp_init();
-    websocket_client_init();
+    ws_start();
     while (1)
     {
         vTaskDelay(5000 / portTICK_PERIOD_MS);

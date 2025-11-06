@@ -22,7 +22,6 @@ target_compile_options(${COMPONENT_LIB} PRIVATE
 )
 
 target_compile_definitions(${COMPONENT_LIB} PRIVATE
-    MG_ARCH=3
     MG_ENABLE_TCPIP=1
     MG_ENABLE_SOCKET=0
     MG_ENABLE_LWIP=1
