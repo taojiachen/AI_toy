@@ -17,6 +17,10 @@
 #include "websocket.h"
 #include "app_sntp.h"
 #include "app_aliyun_mqtt.h"
+#include "esp_board_init.h"
+#include "app_sr.h"
+#include "esp_spiffs.h"
+#include "audio.h"
 
 static const char *TAG = "main";
 
@@ -25,13 +29,17 @@ void app_main(void)
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
-
+    esp_board_init();
+    ESP_ERROR_CHECK(app_sr_start());
     wifi_init();
     app_sntp_init();
-    ws_start();
+    ws_start("wss://192.168.3.72:8765");
+    vTaskDelay(5000 / portTICK_PERIOD_MS);
+    // audio_play("/spiffs/turn_on.opus", 70);
+    
     while (1)
     {
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
+        vTaskDelay(10000 / portTICK_PERIOD_MS);
         ESP_LOGI(TAG, "Free memory after start: %d bytes", heap_caps_get_total_size(MALLOC_CAP_INTERNAL));
     }
 }

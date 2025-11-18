@@ -1,0 +1,51 @@
+menu "helix mp3 config"
+    depends on USE_HELIX_MP3
+
+    config HELIX_USE_STATIC
+        bool "helix_mp3 buffer use static"
+        default y
+        help
+            Use static buffer for Helix MP3 decoder (avoids dynamic heap allocation).
+            Recommended for embedded systems with limited heap.
+
+    config MP3_FILE_BUFF_SIZE
+        int "MP3 File Read Buffer Size (bytes)"
+        default 5120
+        range 2048 8192
+        help
+            Buffer size for reading MP3 file data (maps to MP3_FILE_BUFF_SIZE macro).
+            Default 5120 bytes (5KB): balances read efficiency and memory usage.
+            Adjust based on your file system's block size.
+
+    config MP3_MAX_FRAME_BYTES
+        int "MP3 Max Frame Size (bytes)"
+        default 1940
+        range 1024 2048
+        help
+            Maximum byte size of a single MP3 frame (maps to MP3_MAX_FRAME_BYTES macro).
+            Default 1940 bytes: covers most MP3 bitrates (e.g., 128kbps@44.1kHz = 1440 bytes).
+            Do not set smaller than the largest frame in your MP3 file (avoid truncation).
+
+    config MP3_AUDIO_SAMPLE_RATE
+        int "MP3 Audio Sample Rate (Hz)"
+        default 22050
+        range 11025 44100
+        help
+            Sample rate of MP3 audio (directly maps to MP3_AUDIO_SAMPLE_RATE macro).
+            Must be one of MP3-supported rates: 11025, 22050, 32000, 44100 Hz.
+            (Common choices: 22050 for voice, 44100 for music)
+
+    config MP3_AUDIO_CHANNELS
+        int "MP3 Audio Channels"
+        default 1
+        range 1 2
+        help
+            Set Channels number
+
+    config MP3_FRAME_SAMPLES_NUMBER
+        int "MP3 I2S frame samples number"
+        default 1152
+        range 256 4096
+        help
+            The configuration of I2S DMA, I2S0_DMA_FRAME_NUM
+endmenu

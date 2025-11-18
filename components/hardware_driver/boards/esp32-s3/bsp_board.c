@@ -14,12 +14,12 @@
 #include <bsp_err_check.h>
 
 //#define ADC_I2S_CHANNEL 1
-static const char *TAG = "board";
+static const char *TAG = "bspboard";
 
 i2s_chan_handle_t rx_handle;
 i2s_chan_handle_t tx_handle;
 
-void init_i2s_input(void)
+void init_i2s_read(void)
 {
     // 配置I2S输入通道
     i2s_chan_config_t rx_chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_1, I2S_ROLE_MASTER);
@@ -29,23 +29,23 @@ void init_i2s_input(void)
 
     // 配置I2S输入参数
     i2s_std_config_t rx_std_cfg = {
-        .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(SAMPLE_RX_RATE),
+        .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(SAMPLE_RX_RATE),// 1. 采样率改为16000Hz
         .slot_cfg = {
-            .data_bit_width = I2S_DATA_BIT_WIDTH_32BIT,
-            .slot_bit_width = I2S_SLOT_BIT_WIDTH_32BIT,
-            .slot_mode = I2S_SLOT_MODE_MONO,
-            .slot_mask = I2S_STD_SLOT_LEFT,
-            .ws_width = 24,
+            .data_bit_width = I2S_DATA_BIT_WIDTH_16BIT,// 2. 采样点数据位宽改为16bit（对应int16）
+            .slot_bit_width = I2S_SLOT_BIT_WIDTH_16BIT,// 3. 槽位宽改为16bit（与数据位宽匹配）
+            .slot_mode = I2S_SLOT_MODE_MONO,// 单声道（保持不变）
+            .slot_mask = I2S_STD_SLOT_LEFT, // 单声道使用左声道槽位（保持不变）
+            .ws_width = 16,// 4. 字时钟宽度改为16（与位宽匹配）
             .ws_pol = false,
             .bit_shift = true,
             .left_align = false,
-            .big_endian = false,
+            .big_endian = false,         // 5. 小端序（false表示小端）
             .bit_order_lsb = false},
         .gpio_cfg = {
-            .mclk = I2S_GPIO_UNUSED,
+            .mclk = I2S_GPIO_UNUSED,// INMP441通常不需要MCLK
             .bclk = INMP441_SCK_PIN,
             .ws = INMP441_WS_PIN,
-            .dout = I2S_GPIO_UNUSED,
+            .dout = I2S_GPIO_UNUSED,// 输入模式下不使用输出引脚
             .din = INMP441_SD_PIN,
             .invert_flags = {
                 .mclk_inv = false,
@@ -59,7 +59,7 @@ void init_i2s_input(void)
     ESP_ERROR_CHECK(i2s_channel_enable(rx_handle));
 }
 
-i2s_chan_handle_t init_i2s_output(void)
+i2s_chan_handle_t init_i2s_write(void)
 {
     // 配置I2S输出通道
     i2s_chan_config_t tx_chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_1, I2S_ROLE_MASTER);
@@ -105,38 +105,25 @@ i2s_chan_handle_t init_i2s_output(void)
 size_t bytes_read = 0;
 size_t bytes_written = 0;
 
-// 获取i2s设备数据，并将获取到的数据存入到一个数组中，(i2s通道，数组名，数组长度)
-esp_err_t bsp_i2s_read(int32_t *buffer, int buffer_len)
+// 获取i2s设备(麦克风)数据，并将获取到的数据存入到一个数组中，(i2s通道，数组名，数组长度)
+esp_err_t bsp_i2s_read(int16_t *buffer, int buffer_len)
 {
-    // int32_t *inmp441_data = heap_caps_malloc(BUFFER_SIZE * sizeof(int32_t), MALLOC_CAP_8BIT);
-    // int16_t *max98357a_data = heap_caps_malloc(buffer_len / 2, MALLOC_CAP_8BIT);
     ESP_ERROR_CHECK(i2s_channel_read(rx_handle, buffer,
                                      buffer_len,
                                      &bytes_read, portMAX_DELAY));
-
-    // 转换32位数据到16位  1024
-    // for (int i = 0; i < bytes_read / sizeof(int32_t); i++)
-    // {
-    //     // 右移16位将32位数据转换为16位
-    //     // 同时进行音量调整，这里除以8作为示例
-    //     max98357a_data[i] = (int16_t)(buffer[i] >> 16);
-    // }
-    // buffer_len  等于  &bytes_read ==4096
-    // sizeof(int32_t)==4
-    // 写入数据到MAX98357A
-    // ESP_ERROR_CHECK(i2s_channel_write(tx_handle, max98357a_data,
-    //                                   bytes_read / 2, // 因为从32位转换到16位，所以字节数减半
-    //                                   &bytes_written, portMAX_DELAY));
     return ESP_OK;
 }
 
-// esp_err_t bsp_audio_play(const int16_t *data, size_t buffer_len)
-// {
-//     ESP_ERROR_CHECK(i2s_channel_write(tx_handle, data,
-//                                       buffer_len,
-//                                       &bytes_written, portMAX_DELAY));
-//     return ESP_OK;
-// }
+
+// 输出i2s设备(扬声器)数据，并将获取到的数据存入到一个数组中，(i2s通道，数组名，数组长度)
+esp_err_t bsp_i2s_write(int16_t *buffer, int buffer_len)
+{
+    ESP_ERROR_CHECK(i2s_channel_write(tx_handle, buffer,
+                                     buffer_len,
+                                     &bytes_written, portMAX_DELAY));
+    return ESP_OK;
+}
+
 
 
 esp_err_t bsp_spiffs_mount(void)
@@ -180,8 +167,8 @@ esp_err_t bsp_spiffs_unmount(void)
 
 esp_err_t bsp_board_init()
 {
-    init_i2s_input();
-    init_i2s_output();
+    init_i2s_read();
+    init_i2s_write();
     bsp_spiffs_mount();
     return ESP_OK;
 }

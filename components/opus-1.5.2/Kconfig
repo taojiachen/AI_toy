@@ -1,3 +1,9 @@
+# 先定义 USE_OPUS 开关
+config USE_OPUS
+    bool "Enable Opus Codec Support"
+    default y  # 默认启用，确保菜单可见
+    help
+        Enable support for Opus codec (encoder/decoder).
 menu "Opus Codec Memory Allocation"
     depends on USE_OPUS
 

@@ -6,7 +6,8 @@
 
 esp_err_t esp_board_init();
 
-esp_err_t esp_i2s_read(int32_t *buffer, int buffer_len);
+esp_err_t esp_i2s_read(int16_t *buffer, int buffer_len);
+esp_err_t esp_i2s_write(int16_t *buffer, int buffer_len);
 
 esp_err_t esp_spiffs_mount();
 

@@ -1,3 +1,4 @@
+#ifdef Helix_mp3
 #include "audio.h"
 #include "audio_private.h"
 
@@ -30,7 +31,7 @@ uint32_t mp3_get_id3v2_size(const uint8_t *buf)
 
 static decoder_result_t mp3_init(audio_decoder_t *decoder)
 {
-    mp3_context_t *ctx = osal_malloc(sizeof(mp3_context_t));
+    mp3_context_t *ctx = malloc(sizeof(mp3_context_t));
     if (!ctx) return DECODER_ERROR;
     
     memset(ctx, 0, sizeof(mp3_context_t));
@@ -38,15 +39,15 @@ static decoder_result_t mp3_init(audio_decoder_t *decoder)
     
     ctx->mp3_decoder = MP3InitDecoder();
     if (!ctx->mp3_decoder) {
-        osal_free(ctx);
+        free(ctx);
         return DECODER_ERROR;
     }
     
     ctx->buffer_size = CONFIG_MP3_FILE_BUFF_SIZE;
-    ctx->input_buffer = osal_malloc(ctx->buffer_size);
+    ctx->input_buffer = malloc(ctx->buffer_size);
     if (!ctx->input_buffer) {
         MP3FreeDecoder(ctx->mp3_decoder);
-        osal_free(ctx);
+        free(ctx);
         return DECODER_ERROR;
     }
     
@@ -58,13 +59,13 @@ static decoder_result_t mp3_init(audio_decoder_t *decoder)
     return DECODER_OK;
 }
 
-static decoder_result_t mp3_decode_frame(audio_decoder_t *decoder, struct fs_file_t *file, int16_t *output, uint32_t *samples_decoded)
+static decoder_result_t mp3_decode_frame(audio_decoder_t *decoder, spiffs_file *file, int16_t *output, uint32_t *samples_decoded)
 {
     mp3_context_t *ctx = (mp3_context_t *)decoder->context;
     
     if (ctx->first_read) {
         fs_seek(file, 0, FS_SEEK_SET);
-        os_ssize_t br = fs_read(file, ctx->input_buffer, ctx->buffer_size);
+        size_t br = fs_read(file, ctx->input_buffer, ctx->buffer_size);
         if (br <= 0) return DECODER_EOF;
         
         ctx->id3v2_size = mp3_get_id3v2_size(ctx->input_buffer);
@@ -82,7 +83,7 @@ static decoder_result_t mp3_decode_frame(audio_decoder_t *decoder, struct fs_fil
     if (ctx->bytes_left < CONFIG_MP3_MAX_FRAME_BYTES) {
         memmove(ctx->input_buffer, ctx->read_ptr, ctx->bytes_left);
         uint32_t fill_size = ctx->buffer_size - ctx->bytes_left;
-        os_ssize_t br = fs_read(file, ctx->input_buffer + ctx->bytes_left, fill_size);
+        size_t br = fs_read(file, ctx->input_buffer + ctx->bytes_left, fill_size);
         
         if (br < 0) return DECODER_ERROR;
         
@@ -141,9 +142,9 @@ static void mp3_deinit(audio_decoder_t *decoder)
             MP3FreeDecoder(ctx->mp3_decoder);
         }
         if (ctx->input_buffer) {
-            osal_free(ctx->input_buffer);
+            free(ctx->input_buffer);
         }
-        osal_free(ctx);
+        free(ctx);
     }
 }
 
@@ -154,3 +155,5 @@ void decoder_ops_register (audio_decoder_t *decoder)
     decoder->deinit = mp3_deinit;
     LOG_INF("[MP3] Decoder operations registered successfully");
 }
+
+#endif
