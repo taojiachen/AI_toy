@@ -59,7 +59,7 @@ menu "Opus Codec Memory Allocation"
 
     config OPUS_AUDIO_SAMPLE_RATE
         int "Opus Audio Sample Rate (Hz)"
-        default 24000
+        default 16000
         range 8000 48000
         help
             Sample rate of Opus audio (directly maps to OPUS_AUDIO_SAMPLE_RATE macro).

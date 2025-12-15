@@ -30,12 +30,13 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     esp_board_init();
-    ESP_ERROR_CHECK(app_sr_start());
     wifi_init();
     app_sntp_init();
-    ws_start("wss://192.168.3.72:8765");
+    ESP_ERROR_CHECK(app_sr_start());
+    ESP_ERROR_CHECK(audio_init());
+    ws_start("wss://192.168.38.44:8765");
+
     vTaskDelay(5000 / portTICK_PERIOD_MS);
-    // audio_play("/spiffs/turn_on.opus", 70);
     
     while (1)
     {

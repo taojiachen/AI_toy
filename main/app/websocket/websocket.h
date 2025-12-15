@@ -34,62 +34,70 @@ static const char *server_cert_pem = "-----BEGIN CERTIFICATE-----\n"
 "NR2sXGCvfl4h2ZEvhhsc\n"
 "-----END CERTIFICATE-----\n";
 
-/**
- * @brief 启动WebSocket客户端并连接服务器
- * @return ESP_OK: 成功; 其他: 失败
- */
-esp_err_t ws_start(const char *ws_uri);
+// WebSocket连接状态枚举
+typedef enum {
+    WS_STATE_DISCONNECTED = 0,
+    WS_STATE_CONNECTING,
+    WS_STATE_CONNECTED,
+    WS_STATE_RECONNECTING,
+    WS_STATE_ERROR
+} ws_state_t;
+
+// 数据接收回调函数类型
+typedef void (*ws_data_handler_t)(const char *data, size_t len);
+
+// 状态变化回调函数类型
+typedef void (*ws_state_handler_t)(ws_state_t old_state, ws_state_t new_state);
 
 /**
- * @brief 向服务器发送JSON文本数据（WebSocket文本帧）
- * @param json_data: 待发送的JSON字符串（如 "{\"type\":\"audio\"}"）
- * @param len: JSON数据长度（建议用strlen(json_data)，不含结束符）
- * @return ESP_OK: 成功; 其他: 失败
+ * @brief 简化版启动WebSocket连接（核心接口）
+ * @param uri WebSocket服务器地址（如：wss://192.168.10.44:8765）
+ * @return ESP_OK成功，其他失败
  */
-esp_err_t ws_send_json(const char *json_data, size_t len);
+esp_err_t ws_start(const char *uri);
 
 /**
- * @brief 向服务器发送二进制数据（WebSocket二进制帧）
- * @param binary_data: 二进制数据缓冲区（如PCM音频、二进制文件内容）
- * @param len: 二进制数据长度（字节数）
- * @return ESP_OK: 成功; 其他: 失败
- */
-esp_err_t ws_send_binary(const void *binary_data, size_t len);
-
-/**
- * @brief 注册接收数据处理函数
- * @param handler: 自定义处理函数指针，格式：void func(const char *data, size_t len)
- * 说明：收到服务器数据时，会自动调用此函数，data为接收的字符串，len为数据长度
- */
-void ws_register_recv_handler(void (*handler)(const char *data, size_t len));
-
-/**
- * @brief 获取连接状态
- * @return ESP_OK: 已连接; ESP_FAIL: 未连接或其他错误
- */
-esp_err_t is_ws_connected(void);
-
-/**
- * @brief 停止WebSocket客户端并释放资源
+ * @brief 停止WebSocket连接
  */
 void ws_stop(void);
 
-// 在文件末尾添加
 /**
- * @brief 立即尝试重连服务器
- * @return ESP_OK: 成功; 其他: 失败
+ * @brief 发送文本数据
+ * @param data 文本数据
+ * @param len 数据长度
+ * @return ESP_OK成功，其他失败
  */
-esp_err_t ws_reconnect_now(void);
+esp_err_t ws_send_text(const char *data, size_t len);
 
 /**
- * @brief 获取当前重连计数
- * @return 当前重连次数
+ * @brief 发送二进制数据
+ * @param data 二进制数据
+ * @param len 数据长度
+ * @return ESP_OK成功，其他失败
  */
-int ws_get_reconnect_count(void);
+esp_err_t ws_send_binary(const void *data, size_t len);
 
 /**
- * @brief 重置重连计数
+ * @brief 检查连接状态
+ * @return true已连接，false未连接
  */
-void ws_reset_reconnect_count(void);
+bool ws_is_connected(void);
+
+/**
+ * @brief 注册数据接收回调（可选）
+ * @param handler 回调函数
+ */
+void ws_register_data_handler(ws_data_handler_t handler);
+
+/**
+ * @brief 注册状态变化回调（可选）
+ * @param handler 回调函数
+ */
+void ws_register_state_handler(ws_state_handler_t handler);
+
+/**
+ * @brief 反初始化WebSocket客户端
+ */
+void ws_deinit(void);
 
 #endif // WEBSOCKET_H

@@ -1,688 +1,778 @@
 #include <string.h>
-// 在文件顶部添加重连相关的全局变量
 #include <stdlib.h>
-#include "esp_log.h"
-#include "esp_websocket_client.h"
-#include "esp_tls.h"
-#include "websocket.h"
-#include "freertos/task.h"
-#include <esp_wifi.h>
 #include <time.h>
 #include <sys/time.h>
+#include "esp_log.h"
+#include "esp_websocket_client.h"
+#include "esp_wifi.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/semphr.h"
+#include "freertos/timers.h"
+#include "websocket.h"
+
+#include "audio.h"
 
 // 日志标签
 static const char *TAG = "WS_CLIENT";
 
-// WebSocket客户端句柄
-static esp_websocket_client_handle_t client = NULL;
+// 内置默认配置参数（所有配置集中在这里）
+#define WS_DEFAULT_PING_INTERVAL 10          // PING间隔(秒)
+#define WS_DEFAULT_BUFFER_SIZE (8 * 1024)    // 缓冲区大小
+#define WS_DEFAULT_NETWORK_TIMEOUT 20000     // 网络超时(毫秒)
+#define WS_DEFAULT_MAX_RECONNECT 15          // 最大重连次数
+#define WS_DEFAULT_INIT_RECONNECT_DELAY 2000 // 初始重连延迟(毫秒)
+#define WS_DEFAULT_MAX_RECONNECT_DELAY 30000 // 最大重连延迟(毫秒)
+#define WS_DEFAULT_SKIP_CERT_CHECK true      // 是否跳过证书检查
+#define MAX_OPUS_FRAME_LEN 300
+// ==========================================================================================
 
-// 接收数据处理函数指针（留给用户实现具体逻辑）
-static void (*ws_recv_handler)(const char *data, size_t len) = NULL;
+// WebSocket配置结构体（内部使用）
+typedef struct
+{
+    const char *uri;                // WebSocket服务器地址
+    const char *cert_pem;           // SSL证书
+    int ping_interval_sec;          // PING间隔(秒)
+    int buffer_size;                // 缓冲区大小
+    int network_timeout_ms;         // 网络超时(毫秒)
+    int max_reconnect_attempts;     // 最大重连次数
+    int initial_reconnect_delay_ms; // 初始重连延迟(毫秒)
+    int max_reconnect_delay_ms;     // 最大重连延迟(毫秒)
+    bool skip_cert_check;           // 是否跳过证书检查
+} ws_config_t;
 
-// 重连相关全局变量
-static const char *current_ws_uri = NULL;                  // 保存当前连接的URI
-static TaskHandle_t reconnect_task_handle = NULL;          // 重连任务句柄
-static int reconnect_count = 0;                            // 当前重连次数
-static const int MAX_RECONNECT_ATTEMPTS = 15;              // 最大重连次数
-static const int INITIAL_RECONNECT_INTERVAL_MS = 3000;     // 初始重连间隔(毫秒)
-static const int MAX_RECONNECT_INTERVAL_MS = 30000;        // 最大重连间隔(毫秒)
-static bool is_manually_disconnected = false;              // 标记是否手动断开连接
-static portMUX_TYPE ws_mux = portMUX_INITIALIZER_UNLOCKED; // 互斥锁，保护共享资源
+// WebSocket客户端上下文
+typedef struct
+{
+    esp_websocket_client_handle_t client;
+    ws_config_t config;
+    ws_state_t state;
 
-// 在文件顶部的函数声明区域添加 forward declaration
-static void reconnect_task(void *pvParameters);
+    // 回调函数
+    ws_data_handler_t data_handler;
+    ws_state_handler_t state_handler;
+
+    // 重连相关
+    TaskHandle_t reconnect_task;
+    TimerHandle_t reconnect_timer;
+    int reconnect_attempts;
+    int reconnect_success;
+    int current_delay;
+    bool manual_disconnect;
+
+    // 同步对象
+    SemaphoreHandle_t mutex;
+
+    // 状态标志
+    bool initialized;
+} ws_context_t;
+
+static ws_context_t g_ws_ctx = {0};
+
+TaskHandle_t ws_send_opus_task_handle = NULL;
+
+extern QueueHandle_t ws_send_queue;
+
+// 前向声明
+static void ws_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
+static void ws_reconnect_task(void *pvParameters);
+static void ws_reconnect_timer_cb(TimerHandle_t timer);
+static void ws_set_state(ws_state_t new_state);
+static esp_err_t ws_create_client(void);
+static void ws_destroy_client(void);
+static void ws_start_reconnect_timer(void);
+static void ws_stop_reconnect_timer(void);
+static void ws_send_device_info(void);
+static esp_err_t ws_init_internal(const ws_config_t *config);
 
 /**
- * @brief WebSocket事件回调函数（增强版，添加所有事件处理和重连优化）
+ * @brief 设置WebSocket状态并通知回调
  */
-static void websocket_event_handler(void *handler_args, esp_event_base_t base,
-                                    int32_t event_id, void *event_data)
+static void ws_set_state(ws_state_t new_state)
+{
+    if (xSemaphoreTake(g_ws_ctx.mutex, portMAX_DELAY) == pdTRUE)
+    {
+        ws_state_t old_state = g_ws_ctx.state;
+        g_ws_ctx.state = new_state;
+        xSemaphoreGive(g_ws_ctx.mutex);
+
+        // 状态变化时调用回调
+        if (old_state != new_state && g_ws_ctx.state_handler)
+        {
+            g_ws_ctx.state_handler(old_state, new_state);
+        }
+
+        ESP_LOGI(TAG, "状态变化: %d -> %d", old_state, new_state);
+    }
+}
+
+/**
+ * @brief 发送设备信息到服务器
+ */
+static void ws_send_device_info(void)
+{
+    uint8_t mac_addr[6];
+    char mac_str[18];
+
+    if (esp_wifi_get_mac(WIFI_IF_STA, mac_addr) == ESP_OK)
+    {
+        snprintf(mac_str, sizeof(mac_str), "%02X:%02X:%02X:%02X:%02X:%02X",
+                 mac_addr[0], mac_addr[1], mac_addr[2],
+                 mac_addr[3], mac_addr[4], mac_addr[5]);
+    }
+    else
+    {
+        strcpy(mac_str, "unknown");
+    }
+
+    time_t now = time(NULL);
+    char device_info[256];
+    snprintf(device_info, sizeof(device_info),
+             "{\"type\":\"device_info\",\"mac\":\"%s\",\"timestamp\":%lld}",
+             mac_str, (long long)now);
+
+    ws_send_text(device_info, strlen(device_info));
+}
+
+/**
+ * @brief WebSocket事件处理器
+ */
+static void ws_event_handler(void *handler_args, esp_event_base_t base,
+                             int32_t event_id, void *event_data)
 {
     esp_websocket_event_data_t *data = (esp_websocket_event_data_t *)event_data;
 
     switch (event_id)
     {
     case WEBSOCKET_EVENT_CONNECTED:
-        ESP_LOGI(TAG, "与服务器建立连接成功");
-        // 使用互斥锁保护共享资源
-        portENTER_CRITICAL(&ws_mux);
-        reconnect_count = 0; // 重置重连计数
-        portEXIT_CRITICAL(&ws_mux);
+        ESP_LOGI(TAG, "WebSocket连接成功");
+        ws_set_state(WS_STATE_CONNECTED);
 
-        // 获取MAC地址和时间戳并发送给服务器
-        uint8_t mac_addr[6];
-        char mac_str[18]; // 格式: XX:XX:XX:XX:XX:XX
-        if (esp_wifi_get_mac(WIFI_IF_STA, mac_addr) == ESP_OK)
+        // 重置重连参数
+        if (xSemaphoreTake(g_ws_ctx.mutex, portMAX_DELAY) == pdTRUE)
         {
-            sprintf(mac_str, "%02X:%02X:%02X:%02X:%02X:%02X",
-                    mac_addr[0], mac_addr[1], mac_addr[2],
-                    mac_addr[3], mac_addr[4], mac_addr[5]);
-        }
-        else
-        {
-            strcpy(mac_str, "unknown");
+            g_ws_ctx.current_delay = g_ws_ctx.config.initial_reconnect_delay_ms;
+            if (g_ws_ctx.reconnect_attempts > 0)
+            {
+                g_ws_ctx.reconnect_success++;
+            }
+            g_ws_ctx.reconnect_attempts = 0;
+            xSemaphoreGive(g_ws_ctx.mutex);
         }
 
-        // 获取当前时间戳
-        time_t now = time(NULL);
-        char timestamp_str[32];
-        sprintf(timestamp_str, "%lld", (long long)now);
+        // 停止重连定时器
+        ws_stop_reconnect_timer();
 
-        // 构建JSON数据
-        char device_info_json[256]; // 确保有足够空间
-        sprintf(device_info_json, "{\"type\":\"device_info\",\"mac\":\"%s\",\"timestamp\":%s}",
-                mac_str, timestamp_str);
-
-        // 发送设备信息到服务器
-        ws_send_json(device_info_json, strlen(device_info_json));
-
+        // 发送设备信息
+        ws_send_device_info();
         break;
 
     case WEBSOCKET_EVENT_DISCONNECTED:
-        ESP_LOGI(TAG, "与服务器断开连接，准备重连");
-        // 检查是否是手动断开的连接
-        portENTER_CRITICAL(&ws_mux);
-        bool manual_disconnect = is_manually_disconnected;
-        portEXIT_CRITICAL(&ws_mux);
+        ESP_LOGI(TAG, "WebSocket连接断开");
 
-        if (!manual_disconnect && reconnect_task_handle == NULL && current_ws_uri != NULL)
+        // 检查是否手动断开
+        bool manual = false;
+        if (xSemaphoreTake(g_ws_ctx.mutex, portMAX_DELAY) == pdTRUE)
         {
-            ESP_LOGI(TAG, "启动重连任务");
-            xTaskCreate(reconnect_task, "websocket_reconnect", 4096,
-                        (void *)current_ws_uri, 4, &reconnect_task_handle);
+            manual = g_ws_ctx.manual_disconnect;
+            xSemaphoreGive(g_ws_ctx.mutex);
+        }
+
+        if (!manual)
+        {
+            ws_set_state(WS_STATE_RECONNECTING);
+            ws_start_reconnect_timer();
+        }
+        else
+        {
+            ws_set_state(WS_STATE_DISCONNECTED);
         }
         break;
 
     case WEBSOCKET_EVENT_DATA:
-        // 接收到服务器数据，调用用户注册的处理函数
-        if (ws_recv_handler && data->data_len > 0)
+        if (data && data->data_len > 0 && g_ws_ctx.data_handler)
         {
-            char *recv_data = malloc(data->data_len + 1);
-            if (recv_data != NULL)
-            {
-                memcpy(recv_data, data->data_ptr, data->data_len);
-                recv_data[data->data_len] = '\0'; // 字符串结束符
-                ws_recv_handler(recv_data, data->data_len);
-                free(recv_data); // 释放内存
-            }
         }
         break;
 
     case WEBSOCKET_EVENT_ERROR:
-        ESP_LOGE(TAG, "WebSocket错误事件，错误代码: %d", (int)event_id);
-        // 打印错误详情
+        ESP_LOGE(TAG, "WebSocket错误");
         if (data && data->error_handle.error_type != WEBSOCKET_ERROR_TYPE_NONE)
         {
-            ESP_LOGE(TAG, "错误类型: %d", data->error_handle.error_type);
-            ESP_LOGE(TAG, "ESP错误码: %s", esp_err_to_name(data->error_handle.esp_tls_last_esp_err));
+            ESP_LOGE(TAG, "错误类型: %d, ESP错误: %s",
+                     data->error_handle.error_type,
+                     esp_err_to_name(data->error_handle.esp_tls_last_esp_err));
             if (data->error_handle.esp_transport_sock_errno != 0)
             {
-                ESP_LOGE(TAG, "套接字错误码: %d (%s)",
+                ESP_LOGE(TAG, "Socket错误: %d (%s)",
                          data->error_handle.esp_transport_sock_errno,
                          strerror(data->error_handle.esp_transport_sock_errno));
             }
-
-            // 特定错误处理
-            if (data->error_handle.esp_tls_last_esp_err == ESP_ERR_MBEDTLS_SSL_WRITE_FAILED ||
-                data->error_handle.esp_tls_last_esp_err == ESP_ERR_ESP_TLS_TCP_CLOSED_FIN)
-            {
-                ESP_LOGE(TAG, "检测到SSL连接错误，需要重新建立连接");
-
-                // 停止现有客户端并尝试重连
-                if (client != NULL)
-                {
-                    portENTER_CRITICAL(&ws_mux);
-                    esp_websocket_client_stop(client);
-                    esp_websocket_client_destroy(client);
-                    client = NULL;
-                    portEXIT_CRITICAL(&ws_mux);
-                }
-
-                if (reconnect_task_handle == NULL && current_ws_uri != NULL)
-                {
-                    ESP_LOGI(TAG, "启动重连任务以恢复SSL连接");
-                    xTaskCreate(reconnect_task, "websocket_reconnect", 4096,
-                                (void *)current_ws_uri, 4, &reconnect_task_handle);
-                }
-            }
         }
+        ws_set_state(WS_STATE_ERROR);
+        ws_start_reconnect_timer();
         break;
 
     case WEBSOCKET_EVENT_CLOSED:
-        ESP_LOGI(TAG, "WebSocket连接已干净关闭");
-        // 连接关闭也触发重连
-        portENTER_CRITICAL(&ws_mux);
-        bool manual_close = is_manually_disconnected;
-        portEXIT_CRITICAL(&ws_mux);
-
-        if (!manual_close && reconnect_task_handle == NULL && current_ws_uri != NULL)
-        {
-            ESP_LOGI(TAG, "连接关闭后启动重连任务");
-            xTaskCreate(reconnect_task, "websocket_reconnect", 4096,
-                        (void *)current_ws_uri, 4, &reconnect_task_handle);
-        }
+        ESP_LOGI(TAG, "WebSocket连接已关闭");
         break;
 
     case WEBSOCKET_EVENT_BEFORE_CONNECT:
-        ESP_LOGI(TAG, "准备建立WebSocket连接...");
-        break;
-
-    case WEBSOCKET_EVENT_BEGIN:
-        ESP_LOGI(TAG, "WebSocket客户端线程已创建，准备进入事件循环");
-        break;
-
-    case WEBSOCKET_EVENT_FINISH:
-        ESP_LOGI(TAG, "WebSocket客户端事件循环已结束，准备销毁线程");
+        ESP_LOGI(TAG, "准备建立WebSocket连接");
+        ws_set_state(WS_STATE_CONNECTING);
         break;
 
     default:
-        ESP_LOGW(TAG, "未知事件ID: %d", (int)event_id);
+        ESP_LOGD(TAG, "未知事件: %d", (int)event_id);
         break;
     }
 }
 
 /**
- * @brief 重连任务函数（实现指数退避重连策略，修复版）
+ * @brief 重连定时器回调
  */
-static void reconnect_task(void *pvParameters)
+static void ws_reconnect_timer_cb(TimerHandle_t timer)
 {
-    char *ws_uri = (char *)pvParameters;
-    int current_interval = INITIAL_RECONNECT_INTERVAL_MS;
-    bool reconnected = false;
-    int local_reconnect_count = reconnect_count; // 使用本地变量跟踪重连次数
-    bool client_needs_destroy = false;
+    ESP_LOGI(TAG, "重连定时器触发");
 
-    while (local_reconnect_count < MAX_RECONNECT_ATTEMPTS && !reconnected)
+    // 创建重连任务
+    if (xTaskCreate(ws_reconnect_task, "ws_reconnect", 1024 * 8, NULL, 5, &g_ws_ctx.reconnect_task) != pdPASS)
     {
-        ESP_LOGI(TAG, "尝试重连服务器 (第 %d/%d 次)，间隔: %d ms",
-                 local_reconnect_count + 1, MAX_RECONNECT_ATTEMPTS, current_interval);
+        ESP_LOGE(TAG, "创建重连任务失败");
+        // 重新启动定时器
+        ws_start_reconnect_timer();
+    }
+}
 
-        // 1. 先在临界区检查客户端状态并标记
-        portENTER_CRITICAL(&ws_mux);
-        client_needs_destroy = (client != NULL);
-        portEXIT_CRITICAL(&ws_mux);
+/**
+ * @brief 重连任务
+ */
+static void ws_reconnect_task(void *pvParameters)
+{
+    ESP_LOGI(TAG, "开始重连任务");
 
-        // 2. 在临界区外停止和销毁客户端（避免死锁）
-        if (client_needs_destroy)
+    bool should_retry = true;
+
+    if (xSemaphoreTake(g_ws_ctx.mutex, portMAX_DELAY) == pdTRUE)
+    {
+        g_ws_ctx.reconnect_attempts++;
+
+        // 检查是否超过最大重连次数
+        if (g_ws_ctx.reconnect_attempts > g_ws_ctx.config.max_reconnect_attempts)
         {
-            // 再次检查，因为可能已经被其他任务修改
-            portENTER_CRITICAL(&ws_mux);
-            if (client != NULL)
-            {
-                // 先设置为NULL，防止其他任务访问
-                esp_websocket_client_handle_t temp_client = client;
-                client = NULL;
-                portEXIT_CRITICAL(&ws_mux);
-
-                // 在临界区外执行阻塞操作
-                esp_websocket_client_stop(temp_client);
-                esp_websocket_client_destroy(temp_client);
-            }
-            else
-            {
-                portEXIT_CRITICAL(&ws_mux);
-            }
+            ESP_LOGE(TAG, "达到最大重连次数 (%d)，停止重连",
+                     g_ws_ctx.config.max_reconnect_attempts);
+            should_retry = false;
+            g_ws_ctx.state = WS_STATE_ERROR;
         }
 
-        // 重新初始化并启动客户端
-        esp_err_t ret = ws_start(ws_uri);
+        xSemaphoreGive(g_ws_ctx.mutex);
+    }
 
-        if (ret == ESP_OK)
+    if (should_retry)
+    {
+        ESP_LOGI(TAG, "尝试重连 (%d/%d)",
+                 g_ws_ctx.reconnect_attempts, g_ws_ctx.config.max_reconnect_attempts);
+
+        // 销毁旧客户端
+        ws_destroy_client();
+
+        // 短暂延迟
+        vTaskDelay(pdMS_TO_TICKS(1000));
+
+        // 创建新客户端并连接
+        if (ws_create_client() == ESP_OK)
         {
-            // 等待短暂时间验证连接是否稳定
-            vTaskDelay(pdMS_TO_TICKS(1000));
-
-            portENTER_CRITICAL(&ws_mux);
-            bool is_stable = (client != NULL && esp_websocket_client_is_connected(client));
-            portEXIT_CRITICAL(&ws_mux);
-
-            if (is_stable)
+            if (esp_websocket_client_start(g_ws_ctx.client) == ESP_OK)
             {
-                ESP_LOGI(TAG, "重连成功且连接稳定");
-                portENTER_CRITICAL(&ws_mux);
-                reconnect_count = 0; // 立即重置全局重连计数
-                portEXIT_CRITICAL(&ws_mux);
-                reconnected = true;
+                ESP_LOGI(TAG, "重连启动成功");
             }
             else
             {
-                ESP_LOGW(TAG, "重连成功但连接不稳定，准备重试");
-                local_reconnect_count++;
-                portENTER_CRITICAL(&ws_mux);
-                reconnect_count = local_reconnect_count;
-                portEXIT_CRITICAL(&ws_mux);
-
-                // 添加随机抖动，避免多个设备同时重连导致服务器压力
-                int jitter = rand() % 1000 - 500; // -500ms到+500ms的随机值
-                vTaskDelay(pdMS_TO_TICKS(current_interval + jitter));
-
-                // 指数退避：下一次重连间隔增加50%，但不超过最大值
-                current_interval = current_interval * 3 / 2;
-                if (current_interval > MAX_RECONNECT_INTERVAL_MS)
-                {
-                    current_interval = MAX_RECONNECT_INTERVAL_MS;
-                }
+                ESP_LOGE(TAG, "重连启动失败");
+                ws_start_reconnect_timer();
             }
         }
         else
         {
-            ESP_LOGE(TAG, "重连失败: %s", esp_err_to_name(ret));
-
-            // 重连失败，增加计数并等待，实现指数退避
-            local_reconnect_count++;
-            portENTER_CRITICAL(&ws_mux);
-            reconnect_count = local_reconnect_count;
-            portEXIT_CRITICAL(&ws_mux);
-
-            // 添加随机抖动
-            int jitter = rand() % 1000 - 500;
-            vTaskDelay(pdMS_TO_TICKS(current_interval + jitter));
-
-            // 指数退避：下一次重连间隔增加50%，但不超过最大值
-            current_interval = current_interval * 3 / 2;
-            if (current_interval > MAX_RECONNECT_INTERVAL_MS)
-            {
-                current_interval = MAX_RECONNECT_INTERVAL_MS;
-            }
+            ESP_LOGE(TAG, "重连创建客户端失败");
+            ws_start_reconnect_timer();
         }
     }
 
-    if (!reconnected)
+    // 清理任务句柄
+    if (xSemaphoreTake(g_ws_ctx.mutex, portMAX_DELAY) == pdTRUE)
     {
-        ESP_LOGE(TAG, "达到最大重连次数 (%d次)，停止重连尝试", MAX_RECONNECT_ATTEMPTS);
+        g_ws_ctx.reconnect_task = NULL;
+        xSemaphoreGive(g_ws_ctx.mutex);
     }
 
-    // 清理任务句柄
-    portENTER_CRITICAL(&ws_mux);
-    reconnect_task_handle = NULL;
-    portEXIT_CRITICAL(&ws_mux);
     vTaskDelete(NULL);
 }
 
 /**
- * @brief 启动WebSocket客户端并连接服务器（增强版）
+ * @brief 启动重连定时器
  */
-esp_err_t ws_start(const char *ws_uri)
+static void ws_start_reconnect_timer(void)
 {
-    // 新增：参数合法性校验
-    if (ws_uri == NULL || strlen(ws_uri) == 0)
+    if (g_ws_ctx.reconnect_timer && xTimerIsTimerActive(g_ws_ctx.reconnect_timer) == pdFALSE)
     {
-        ESP_LOGE(TAG, "传入的WSS地址为空或无效");
-        return ESP_ERR_INVALID_ARG;
-    }
+        int delay = g_ws_ctx.current_delay;
 
-    portENTER_CRITICAL(&ws_mux);
-    if (client != NULL)
+        // 指数退避：每次失败后延迟时间乘以1.5
+        g_ws_ctx.current_delay = (g_ws_ctx.current_delay * 3) / 2;
+        if (g_ws_ctx.current_delay > g_ws_ctx.config.max_reconnect_delay_ms)
+        {
+            g_ws_ctx.current_delay = g_ws_ctx.config.max_reconnect_delay_ms;
+        }
+
+        // 添加随机抖动（±500ms）
+        delay += (rand() % 1000) - 500;
+        if (delay < 1000)
+            delay = 1000;
+
+        ESP_LOGI(TAG, "启动重连定时器，延迟: %d ms", delay);
+        xTimerChangePeriod(g_ws_ctx.reconnect_timer, pdMS_TO_TICKS(delay), 0);
+        xTimerStart(g_ws_ctx.reconnect_timer, 0);
+    }
+}
+
+/**
+ * @brief 停止重连定时器
+ */
+static void ws_stop_reconnect_timer(void)
+{
+    if (g_ws_ctx.reconnect_timer && xTimerIsTimerActive(g_ws_ctx.reconnect_timer) == pdTRUE)
     {
-        portEXIT_CRITICAL(&ws_mux);
-        ESP_LOGW(TAG, "WebSocket客户端已处于运行状态");
+        xTimerStop(g_ws_ctx.reconnect_timer, 0);
+        ESP_LOGI(TAG, "停止重连定时器");
+    }
+}
+
+/**
+ * @brief 创建WebSocket客户端
+ */
+static esp_err_t ws_create_client(void)
+{
+    if (g_ws_ctx.client)
+    {
+        ESP_LOGW(TAG, "客户端已存在");
         return ESP_OK;
     }
-    portEXIT_CRITICAL(&ws_mux);
 
-    // 保存当前URI用于重连
-    current_ws_uri = ws_uri;
-
-    // 基于结构体定义的正确wss配置（优化配置）
     esp_websocket_client_config_t ws_cfg = {
-        .uri = ws_uri,                             // 使用传入的参数作为WSS地址
-        .transport = WEBSOCKET_TRANSPORT_OVER_SSL, // wss必须用SSL传输类型
-        .cert_pem = server_cert_pem,               // 自签名证书
-        .skip_cert_common_name_check = true,       // 跳过域名检查
-        .disable_auto_reconnect = true,            // 禁用内置重连，使用我们自定义的重连逻辑
-        .task_prio = 3,                            // 进一步降低任务优先级，减少CPU占用
-        .buffer_size = 1024 * 16,                  // 进一步增大缓冲区到16KB
-        .ping_interval_sec = 5,                    // 进一步缩短PING间隔到5秒
-        .reconnect_timeout_ms = 5000,              // 增加重连间隔到5秒
-        .network_timeout_ms = 20000,               // 增加网络超时到20秒
+        .uri = g_ws_ctx.config.uri,
+        .transport = WEBSOCKET_TRANSPORT_OVER_SSL,
+        .cert_pem = g_ws_ctx.config.cert_pem,
+        .skip_cert_common_name_check = g_ws_ctx.config.skip_cert_check,
+        .disable_auto_reconnect = true, // 使用自定义重连逻辑
+        .task_prio = 3,
+        .buffer_size = g_ws_ctx.config.buffer_size,
+        .ping_interval_sec = g_ws_ctx.config.ping_interval_sec,
+        .network_timeout_ms = g_ws_ctx.config.network_timeout_ms,
     };
 
-    // 创建客户端实例
-    client = esp_websocket_client_init(&ws_cfg);
-    if (client == NULL)
+    g_ws_ctx.client = esp_websocket_client_init(&ws_cfg);
+    if (!g_ws_ctx.client)
     {
-        ESP_LOGE(TAG, "客户端初始化失败");
+        ESP_LOGE(TAG, "创建WebSocket客户端失败");
         return ESP_FAIL;
     }
 
-    // 注册事件回调
-    esp_err_t ret = esp_websocket_register_events(client, WEBSOCKET_EVENT_ANY,
-                                                  websocket_event_handler, NULL);
+    esp_err_t ret = esp_websocket_register_events(g_ws_ctx.client, WEBSOCKET_EVENT_ANY,
+                                                  ws_event_handler, NULL);
     if (ret != ESP_OK)
     {
-        ESP_LOGE(TAG, "注册事件回调失败: %s", esp_err_to_name(ret));
-        esp_websocket_client_destroy(client);
-        client = NULL;
+        ESP_LOGE(TAG, "注册事件处理器失败: %s", esp_err_to_name(ret));
+        esp_websocket_client_destroy(g_ws_ctx.client);
+        g_ws_ctx.client = NULL;
         return ret;
     }
 
-    // 启动客户端
-    ret = esp_websocket_client_start(client);
-    if (ret != ESP_OK)
-    {
-        ESP_LOGE(TAG, "启动客户端失败: %s", esp_err_to_name(ret));
-        esp_websocket_client_destroy(client);
-        client = NULL;
-        return ret;
-    }
-
-    // 初始化WebSocket之后注册接收处理函数
-    // 移除对未定义函数的调用 - 这个处理函数应该由用户代码在外部注册
-    // ws_register_recv_handler(ws_message_handler);  // 这一行必须被正确注释或删除
-
-    ESP_LOGI(TAG, "WebSocket客户端启动成功，正在连接服务器: %s", ws_uri);
     return ESP_OK;
 }
 
 /**
- * @brief 向服务器发送二进制数据（增强版，添加重连支持）
+ * @brief 销毁WebSocket客户端
  */
-esp_err_t ws_send_binary(const void *binary_data, size_t len)
+static void ws_destroy_client(void)
 {
-    // 1. 基础校验：客户端状态和数据合法性
-    portENTER_CRITICAL(&ws_mux);
-    bool is_client_null = (client == NULL);
-    portEXIT_CRITICAL(&ws_mux);
-
-    if (is_client_null)
+    if (g_ws_ctx.client)
     {
-        ESP_LOGE(TAG, "二进制发送失败：客户端未初始化");
-        return ESP_FAIL;
-    }
-
-    // 2. 检查连接状态，如果未连接则尝试重新连接
-    portENTER_CRITICAL(&ws_mux);
-    bool is_connected = esp_websocket_client_is_connected(client);
-    portEXIT_CRITICAL(&ws_mux);
-
-    if (!is_connected)
-    {
-        ESP_LOGE(TAG, "二进制发送失败：客户端未连接服务器，尝试重连...");
-
-        // 如果重连任务未运行，则启动它
-        portENTER_CRITICAL(&ws_mux);
-        bool need_reconnect = (reconnect_task_handle == NULL && current_ws_uri != NULL);
-        portEXIT_CRITICAL(&ws_mux);
-
-        if (need_reconnect)
-        {
-            ESP_LOGI(TAG, "启动重连任务");
-            xTaskCreate(reconnect_task, "websocket_reconnect", 4096,
-                        (void *)current_ws_uri, 4, &reconnect_task_handle);
-        }
-
-        return ESP_FAIL;
-    }
-
-    // 3. 数据校验
-    if (binary_data == NULL || len == 0 || len > INT_MAX)
-    {
-        ESP_LOGE(TAG, "二进制发送失败：数据为空/长度为0/长度超出int范围");
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    // 4. 调用底层二进制发送函数，添加重试机制
-    int send_len = -1;
-    int retry_count = 0;
-    const int MAX_RETRY = 2;
-
-    while (retry_count < MAX_RETRY && send_len <= 0)
-    {
-        send_len = esp_websocket_client_send_bin(
-            client,
-            (const char *)binary_data,
-            (int)len,
-            portMAX_DELAY);
-
-        if (send_len <= 0)
-        {
-            ESP_LOGE(TAG, "二进制发送失败：错误码=%d，原因：%s，正在重试(%d/%d)",
-                     send_len, esp_err_to_name(-send_len), retry_count + 1, MAX_RETRY);
-            retry_count++;
-
-            // 短暂延迟后重试
-            vTaskDelay(pdMS_TO_TICKS(10));
-
-            // 检查连接状态，如果已断开则不再重试
-            portENTER_CRITICAL(&ws_mux);
-            bool still_connected = esp_websocket_client_is_connected(client);
-            portEXIT_CRITICAL(&ws_mux);
-
-            if (!still_connected)
-            {
-                ESP_LOGE(TAG, "连接已断开，停止重试");
-                break;
-            }
-        }
-    }
-
-    // 5. 解析返回值
-    if (send_len > 0)
-    {
-        return ESP_OK;
-    }
-    else
-    {
-        // 失败：send_len为负数，尝试重连
-        ESP_LOGE(TAG, "二进制发送失败：达到最大重试次数，错误码=%d，原因：%s",
-                 send_len, esp_err_to_name(-send_len));
-
-        // 如果是连接问题，尝试重连
-        portENTER_CRITICAL(&ws_mux);
-        bool need_reconnect = (reconnect_task_handle == NULL && current_ws_uri != NULL);
-        portEXIT_CRITICAL(&ws_mux);
-
-        if (need_reconnect)
-        {
-            ESP_LOGI(TAG, "发送失败可能是连接问题，启动重连任务");
-            xTaskCreate(reconnect_task, "websocket_reconnect", 4096,
-                        (void *)current_ws_uri, 4, &reconnect_task_handle);
-        }
-
-        return ESP_FAIL;
+        esp_websocket_client_stop(g_ws_ctx.client);
+        esp_websocket_client_destroy(g_ws_ctx.client);
+        g_ws_ctx.client = NULL;
+        ESP_LOGI(TAG, "WebSocket客户端已销毁");
     }
 }
 
 /**
- * @brief 向服务器发送JSON文本数据（增强版，添加重连支持）
+ * @brief 内部初始化函数（用户无需调用）
  */
-esp_err_t ws_send_json(const char *json_data, size_t len)
+static esp_err_t ws_init_internal(const ws_config_t *config)
 {
-    // 1. 基础校验：客户端状态和数据合法性
-    portENTER_CRITICAL(&ws_mux);
-    bool is_client_null = (client == NULL);
-    portEXIT_CRITICAL(&ws_mux);
-
-    if (is_client_null)
+    if (g_ws_ctx.initialized)
     {
-        ESP_LOGE(TAG, "JSON发送失败：客户端未初始化");
-        return ESP_FAIL;
+        ESP_LOGW(TAG, "WebSocket已经初始化");
+        return ESP_OK;
     }
 
-    // 2. 检查连接状态，如果未连接则尝试重新连接
-    portENTER_CRITICAL(&ws_mux);
-    bool is_connected = esp_websocket_client_is_connected(client);
-    portEXIT_CRITICAL(&ws_mux);
-
-    if (!is_connected)
+    if (!config || !config->uri)
     {
-        ESP_LOGE(TAG, "JSON发送失败：客户端未连接服务器，尝试重连...");
-
-        // 如果重连任务未运行，则启动它
-        portENTER_CRITICAL(&ws_mux);
-        bool need_reconnect = (reconnect_task_handle == NULL && current_ws_uri != NULL);
-        portEXIT_CRITICAL(&ws_mux);
-
-        if (need_reconnect)
-        {
-            ESP_LOGI(TAG, "启动重连任务");
-            xTaskCreate(reconnect_task, "websocket_reconnect", 4096,
-                        (void *)current_ws_uri, 4, &reconnect_task_handle);
-        }
-
-        return ESP_FAIL;
-    }
-
-    // 3. 数据校验
-    if (json_data == NULL || len == 0 || len > INT_MAX)
-    {
-        ESP_LOGE(TAG, "JSON发送失败：数据为空/长度为0/长度超出int范围");
+        ESP_LOGE(TAG, "无效的配置参数");
         return ESP_ERR_INVALID_ARG;
     }
 
-    // 4. 调用底层文本发送函数，添加重试机制
-    int send_len = -1;
-    int retry_count = 0;
-    const int MAX_RETRY = 2;
+    // 清零上下文
+    memset(&g_ws_ctx, 0, sizeof(g_ws_ctx));
 
-    while (retry_count < MAX_RETRY && send_len <= 0)
+    // 复制配置
+    g_ws_ctx.config = *config;
+
+    // 填充默认值（确保配置完整性）
+    if (g_ws_ctx.config.ping_interval_sec <= 0)
     {
-        send_len = esp_websocket_client_send_text(
-            client,
-            json_data,
-            (int)len,
-            portMAX_DELAY);
-
-        if (send_len <= 0)
-        {
-            ESP_LOGE(TAG, "JSON发送失败：错误码=%d，原因：%s，正在重试(%d/%d)",
-                     send_len, esp_err_to_name(-send_len), retry_count + 1, MAX_RETRY);
-            retry_count++;
-
-            // 短暂延迟后重试
-            vTaskDelay(pdMS_TO_TICKS(10));
-
-            // 检查连接状态，如果已断开则不再重试
-            portENTER_CRITICAL(&ws_mux);
-            bool still_connected = esp_websocket_client_is_connected(client);
-            portEXIT_CRITICAL(&ws_mux);
-
-            if (!still_connected)
-            {
-                ESP_LOGE(TAG, "连接已断开，停止重试");
-                break;
-            }
-        }
+        g_ws_ctx.config.ping_interval_sec = WS_DEFAULT_PING_INTERVAL;
+    }
+    if (g_ws_ctx.config.buffer_size <= 0)
+    {
+        g_ws_ctx.config.buffer_size = WS_DEFAULT_BUFFER_SIZE;
+    }
+    if (g_ws_ctx.config.network_timeout_ms <= 0)
+    {
+        g_ws_ctx.config.network_timeout_ms = WS_DEFAULT_NETWORK_TIMEOUT;
+    }
+    if (g_ws_ctx.config.max_reconnect_attempts <= 0)
+    {
+        g_ws_ctx.config.max_reconnect_attempts = WS_DEFAULT_MAX_RECONNECT;
+    }
+    if (g_ws_ctx.config.initial_reconnect_delay_ms <= 0)
+    {
+        g_ws_ctx.config.initial_reconnect_delay_ms = WS_DEFAULT_INIT_RECONNECT_DELAY;
+    }
+    if (g_ws_ctx.config.max_reconnect_delay_ms <= 0)
+    {
+        g_ws_ctx.config.max_reconnect_delay_ms = WS_DEFAULT_MAX_RECONNECT_DELAY;
+    }
+    if (g_ws_ctx.config.cert_pem == NULL)
+    {
+        g_ws_ctx.config.cert_pem = server_cert_pem; // 使用内置证书
     }
 
-    // 5. 解析返回值
-    if (send_len > 0)
+    g_ws_ctx.current_delay = g_ws_ctx.config.initial_reconnect_delay_ms;
+    g_ws_ctx.state = WS_STATE_DISCONNECTED;
+
+    // 创建互斥锁
+    g_ws_ctx.mutex = xSemaphoreCreateMutex();
+    if (!g_ws_ctx.mutex)
     {
-        return ESP_OK;
-    }
-    else
-    {
-        // 失败：send_len为负数，尝试重连
-        ESP_LOGE(TAG, "JSON发送失败：达到最大重试次数，错误码=%d，原因：%s",
-                 send_len, esp_err_to_name(-send_len));
-
-        // 如果是连接问题，尝试重连
-        portENTER_CRITICAL(&ws_mux);
-        bool need_reconnect = (reconnect_task_handle == NULL && current_ws_uri != NULL);
-        portEXIT_CRITICAL(&ws_mux);
-
-        if (need_reconnect)
-        {
-            ESP_LOGI(TAG, "发送失败可能是连接问题，启动重连任务");
-            xTaskCreate(reconnect_task, "websocket_reconnect", 4096,
-                        (void *)current_ws_uri, 4, &reconnect_task_handle);
-        }
-
+        ESP_LOGE(TAG, "创建互斥锁失败");
         return ESP_FAIL;
     }
+
+    // 创建重连定时器
+    g_ws_ctx.reconnect_timer = xTimerCreate("ws_reconnect_timer",
+                                            pdMS_TO_TICKS(1000),
+                                            pdFALSE,
+                                            NULL,
+                                            ws_reconnect_timer_cb);
+    if (!g_ws_ctx.reconnect_timer)
+    {
+        ESP_LOGE(TAG, "创建重连定时器失败");
+        vSemaphoreDelete(g_ws_ctx.mutex);
+        return ESP_FAIL;
+    }
+
+    g_ws_ctx.initialized = true;
+    ESP_LOGI(TAG, "WebSocket客户端初始化成功");
+
+    return ESP_OK;
+}
+
+esp_err_t ws_send_opus_task(void *pvParameters)
+{
+    // 1. 初始化临时缓冲区（存储从opus_output_buffer读取的OPUS数据）
+    uint8_t opus_data_buf[MAX_OPUS_FRAME_LEN] = {0};
+    // 2. 队列接收的变量：存储需要读取的OPUS数据长度
+    uint16_t req_len = 0;
+    while (1)
+    {
+        // 3. 从队列中接收「需要读取的字节数」（阻塞等待，直到有数据）
+        if (xQueueReceive(ws_send_queue, &req_len, portMAX_DELAY) == pdTRUE)
+        {
+            // 校验：读取长度不能超过缓冲区最大容量（避免缓冲区溢出）
+            if (req_len > MAX_OPUS_FRAME_LEN)
+            {
+                ESP_LOGE(TAG, "请求读取长度超过缓冲区上限: req_len=%u, max=%u",
+                         req_len, MAX_OPUS_FRAME_LEN);
+                req_len = 0; // 重置，避免后续错误
+                continue;
+            }
+
+            // 4. 提前检查WebSocket连接状态（减少无效的读操作）
+            if (!ws_is_connected())
+            {
+                ESP_LOGE(TAG, "WebSocket未连接，跳过OPUS数据发送");
+                req_len = 0;
+                continue;
+            }
+
+            // 5. 从公共缓冲区读取指定长度的OPUS数据
+            esp_err_t read_ret = audio_get_opus_data(opus_data_buf, req_len);
+            if (read_ret != ESP_OK)
+            {
+                ESP_LOGE(TAG, "读取OPUS数据失败: %s", esp_err_to_name(read_ret));
+                req_len = 0;
+                continue;
+            }
+
+            // 6. 发送二进制OPUS数据（通过WebSocket）
+            esp_err_t send_ret = ws_send_binary(opus_data_buf, req_len);
+            if (send_ret != ESP_OK)
+            {
+                ESP_LOGE(TAG, "发送OPUS数据失败: %s (长度=%u)",
+                         esp_err_to_name(send_ret), req_len);
+            }
+            else
+            {
+                ESP_LOGD(TAG, "成功发送OPUS数据，长度=%u字节", req_len);
+            }
+
+            // 重置变量，避免残留数据
+            req_len = 0;
+            memset(opus_data_buf, 0, req_len); // 仅清空已使用的部分，提升效率
+        }
+        else
+        {
+            // 队列接收失败（仅调试用，portMAX_DELAY下基本不会触发）
+            ESP_LOGW(TAG, "从ws_send_queue接收数据失败");
+        }
+
+        // 短延迟：降低任务调度频率，避免占用过多CPU
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+
+    // 循环不会执行到此处，仅满足函数返回值要求
+    ESP_LOGW(TAG, "OPUS发送任务异常退出");
+    return ESP_FAIL;
 }
 
 /**
- * @brief 停止WebSocket客户端并释放资源（增强版）
+ * @brief 简化版启动WebSocket连接（对外核心接口）
+ */
+esp_err_t ws_start(const char *uri)
+{
+    if (uri == NULL || strlen(uri) == 0)
+    {
+        ESP_LOGE(TAG, "无效的WS地址");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // 构建默认配置（所有参数内置，仅URI由用户传入）
+    ws_config_t default_config = {
+        .uri = uri,
+        .cert_pem = server_cert_pem,
+        .ping_interval_sec = WS_DEFAULT_PING_INTERVAL,
+        .buffer_size = WS_DEFAULT_BUFFER_SIZE,
+        .network_timeout_ms = WS_DEFAULT_NETWORK_TIMEOUT,
+        .max_reconnect_attempts = WS_DEFAULT_MAX_RECONNECT,
+        .initial_reconnect_delay_ms = WS_DEFAULT_INIT_RECONNECT_DELAY,
+        .max_reconnect_delay_ms = WS_DEFAULT_MAX_RECONNECT_DELAY,
+        .skip_cert_check = WS_DEFAULT_SKIP_CERT_CHECK};
+
+    // 初始化（未初始化时执行）
+    esp_err_t ret = ws_init_internal(&default_config);
+    if (ret != ESP_OK)
+    {
+        return ret;
+    }
+
+    // 标记非手动断开
+    if (xSemaphoreTake(g_ws_ctx.mutex, portMAX_DELAY) == pdTRUE)
+    {
+        g_ws_ctx.manual_disconnect = false;
+        xSemaphoreGive(g_ws_ctx.mutex);
+    }
+
+    // 创建客户端并启动连接
+    ret = ws_create_client();
+    if (ret != ESP_OK)
+    {
+        return ret;
+    }
+
+    ret = esp_websocket_client_start(g_ws_ctx.client);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "启动WebSocket客户端失败: %s", esp_err_to_name(ret));
+        ws_destroy_client();
+        return ret;
+    }
+
+    ESP_LOGI(TAG, "WebSocket客户端启动成功，连接地址: %s", uri);
+
+    xTaskCreate(ws_send_opus_task, "ws_send_opus_task", 1024 * 8, NULL, 5, &ws_send_opus_task_handle);
+    return ESP_OK;
+}
+
+/**
+ * @brief 停止WebSocket连接
  */
 void ws_stop(void)
 {
-    // 标记为手动断开连接
-    portENTER_CRITICAL(&ws_mux);
-    is_manually_disconnected = true;
-    portEXIT_CRITICAL(&ws_mux);
-
-    // 停止重连任务
-    if (reconnect_task_handle != NULL)
+    if (!g_ws_ctx.initialized)
     {
-        vTaskDelete(reconnect_task_handle);
-        reconnect_task_handle = NULL;
+        return;
     }
 
-    // 停止客户端
-    portENTER_CRITICAL(&ws_mux);
-    if (client != NULL)
+    // 标记手动断开
+    if (xSemaphoreTake(g_ws_ctx.mutex, portMAX_DELAY) == pdTRUE)
     {
-        esp_websocket_client_stop(client);
-        esp_websocket_client_destroy(client);
-        client = NULL;
-        ESP_LOGI(TAG, "WebSocket客户端已停止");
+        g_ws_ctx.manual_disconnect = true;
+        xSemaphoreGive(g_ws_ctx.mutex);
     }
-    portEXIT_CRITICAL(&ws_mux);
 
-    // 重置重连计数
-    portENTER_CRITICAL(&ws_mux);
-    reconnect_count = 0;
-    // 重置手动断开标记
-    is_manually_disconnected = false;
-    portEXIT_CRITICAL(&ws_mux);
-}
+    // 停止重连定时器
+    ws_stop_reconnect_timer();
 
-esp_err_t is_ws_connected(void)
-{
-    if (client == NULL)
+    // 删除重连任务
+    if (g_ws_ctx.reconnect_task)
     {
-        return false;
+        vTaskDelete(g_ws_ctx.reconnect_task);
+        g_ws_ctx.reconnect_task = NULL;
     }
-    return esp_websocket_client_is_connected(client);
+
+    // 销毁客户端
+    ws_destroy_client();
+
+    ws_set_state(WS_STATE_DISCONNECTED);
+    ESP_LOGI(TAG, "WebSocket客户端已停止");
 }
 
 /**
- * @brief 注册接收数据处理函数
- * @param handler: 自定义处理函数（收到数据时回调）
+ * @brief 发送文本数据
  */
-void ws_register_recv_handler(void (*handler)(const char *data, size_t len))
+esp_err_t ws_send_text(const char *data, size_t len)
 {
-    ws_recv_handler = handler;
-    ESP_LOGI(TAG, "接收数据处理函数注册成功");
-}
-
-/**
- * @brief 立即尝试重连服务器
- * @return ESP_OK: 成功; 其他: 失败
- */
-esp_err_t ws_reconnect_now(void)
-{
-    if (current_ws_uri == NULL)
+    if (!g_ws_ctx.initialized || !g_ws_ctx.client)
     {
-        ESP_LOGE(TAG, "无法重连：未设置WebSocket服务器地址");
+        ESP_LOGE(TAG, "WebSocket未初始化或客户端不存在");
         return ESP_ERR_INVALID_STATE;
     }
 
-    // 停止现有重连任务
-    if (reconnect_task_handle != NULL)
+    if (!data || len == 0 || len > INT_MAX)
     {
-        vTaskDelete(reconnect_task_handle);
-        reconnect_task_handle = NULL;
+        ESP_LOGE(TAG, "无效的数据参数");
+        return ESP_ERR_INVALID_ARG;
     }
 
-    // 重置重连计数并立即重连
-    reconnect_count = 0;
-    return ws_start(current_ws_uri);
+    if (!esp_websocket_client_is_connected(g_ws_ctx.client))
+    {
+        ESP_LOGE(TAG, "WebSocket未连接");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    int sent = esp_websocket_client_send_text(g_ws_ctx.client, data, (int)len, portMAX_DELAY);
+    if (sent <= 0)
+    {
+        ESP_LOGE(TAG, "发送文本数据失败: %d", sent);
+        return ESP_FAIL;
+    }
+
+    return ESP_OK;
 }
 
 /**
- * @brief 获取当前重连计数
+ * @brief 发送二进制数据
  */
-int ws_get_reconnect_count(void)
+esp_err_t ws_send_binary(const void *data, size_t len)
 {
-    return reconnect_count;
+    if (!g_ws_ctx.initialized || !g_ws_ctx.client)
+    {
+        ESP_LOGE(TAG, "WebSocket未初始化或客户端不存在");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    if (!data || len == 0 || len > INT_MAX)
+    {
+        ESP_LOGE(TAG, "无效的数据参数");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (!esp_websocket_client_is_connected(g_ws_ctx.client))
+    {
+        ESP_LOGE(TAG, "WebSocket未连接");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    int sent = esp_websocket_client_send_bin(g_ws_ctx.client, (const char *)data, (int)len, portMAX_DELAY);
+    if (sent <= 0)
+    {
+        ESP_LOGE(TAG, "发送二进制数据失败: %d", sent);
+        return ESP_FAIL;
+    }
+
+    return ESP_OK;
 }
 
 /**
- * @brief 重置重连计数
+ * @brief 检查连接状态
  */
-void ws_reset_reconnect_count(void)
+bool ws_is_connected(void)
 {
-    reconnect_count = 0;
+    if (!g_ws_ctx.initialized || !g_ws_ctx.client)
+    {
+        return false;
+    }
+
+    return esp_websocket_client_is_connected(g_ws_ctx.client);
+}
+
+/**
+ * @brief 注册数据接收回调
+ */
+void ws_register_data_handler(ws_data_handler_t handler)
+{
+    g_ws_ctx.data_handler = handler;
+    ESP_LOGI(TAG, "数据接收回调已注册");
+}
+
+/**
+ * @brief 注册状态变化回调
+ */
+void ws_register_state_handler(ws_state_handler_t handler)
+{
+    g_ws_ctx.state_handler = handler;
+    ESP_LOGI(TAG, "状态变化回调已注册");
+}
+
+/**
+ * @brief 反初始化WebSocket客户端
+ */
+void ws_deinit(void)
+{
+    if (!g_ws_ctx.initialized)
+    {
+        return;
+    }
+
+    // 停止WebSocket
+    ws_stop();
+
+    // 删除定时器
+    if (g_ws_ctx.reconnect_timer)
+    {
+        xTimerDelete(g_ws_ctx.reconnect_timer, portMAX_DELAY);
+        g_ws_ctx.reconnect_timer = NULL;
+    }
+
+    // 删除互斥锁
+    if (g_ws_ctx.mutex)
+    {
+        vSemaphoreDelete(g_ws_ctx.mutex);
+        g_ws_ctx.mutex = NULL;
+    }
+
+    g_ws_ctx.initialized = false;
+    ESP_LOGI(TAG, "WebSocket客户端已反初始化");
 }
