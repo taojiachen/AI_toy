@@ -79,6 +79,7 @@
         "buffer": "c",
         "streambuf": "c",
         "cctype": "c",
-        "iosfwd": "c"
+        "iosfwd": "c",
+        "math.h": "c"
     }
 }

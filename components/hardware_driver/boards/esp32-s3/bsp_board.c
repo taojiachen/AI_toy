@@ -65,6 +65,8 @@ i2s_chan_handle_t init_i2s_write(void)
     i2s_chan_config_t tx_chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_1, I2S_ROLE_MASTER);
     tx_chan_cfg.dma_desc_num = DMA_BUF_COUNT;
     tx_chan_cfg.dma_frame_num = DMA_BUF_LEN;
+    // 启用自动清除功能，防止播放停不下来
+    tx_chan_cfg.auto_clear_after_cb = true;
     ESP_ERROR_CHECK(i2s_new_channel(&tx_chan_cfg, &tx_handle, NULL));
 
     // 配置I2S输出参数
