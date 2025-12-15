@@ -62,6 +62,23 @@
         "deque": "c",
         "vector": "c",
         "initializer_list": "c",
-        "*.in": "c"
+        "*.in": "c",
+        "cstddef": "c",
+        "cstdio": "c",
+        "cstring": "c",
+        "cwchar": "c",
+        "memory_resource": "c",
+        "optional": "c",
+        "stdexcept": "c",
+        "system_error": "c",
+        "ratio": "c",
+        "bit": "c",
+        "esp_log.h": "c",
+        "stddef.h": "c",
+        "cmath": "c",
+        "buffer": "c",
+        "streambuf": "c",
+        "cctype": "c",
+        "iosfwd": "c"
     }
 }

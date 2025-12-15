@@ -135,7 +135,7 @@ set(SILK_COMMON_SOURCES
     silk/stereo_quant_pred.c
     silk/LPC_fit.c
     silk/arm/arm_silk_map.c
-
+    silk/control_codec.c
 )
 
 set(SILK_SOURCES_FIXED

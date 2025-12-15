@@ -16,6 +16,10 @@ extern "C"
 #endif
 
 #define SR_CONTINUE_DET 1
+#define DURATION_PER_FRAME_MS 60     // 每帧时长（ms）
+#define BYTES_PER_FRAME  (DURATION_PER_FRAME_MS * CONFIG_OPUS_AUDIO_SAMPLE_RATE / 1000 * sizeof(int16_t))   // 每帧字节数1920字节
+
+#define SAMPLES_PER_BUFFER (WS_TRANSFER_SIZE / sizeof(int16_t)) // 每个缓冲区的样本数
 
     /**
      * @brief Start speech recognition task

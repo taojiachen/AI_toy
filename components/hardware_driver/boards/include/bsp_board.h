@@ -19,7 +19,7 @@
 #define SAMPLE_RX_RATE 16000
 #define SAMPLE_TX_RATE 24000
 #define DMA_BUF_COUNT 8
-#define DMA_BUF_LEN 1023
+#define DMA_BUF_LEN 1024
 
 esp_err_t bsp_board_init();
 

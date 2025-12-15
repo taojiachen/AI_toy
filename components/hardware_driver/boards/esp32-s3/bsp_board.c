@@ -22,7 +22,7 @@ i2s_chan_handle_t tx_handle;
 void init_i2s_read(void)
 {
     // 配置I2S输入通道
-    i2s_chan_config_t rx_chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_1, I2S_ROLE_MASTER);
+    i2s_chan_config_t rx_chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
     rx_chan_cfg.dma_desc_num = DMA_BUF_COUNT;
     rx_chan_cfg.dma_frame_num = DMA_BUF_LEN;
     ESP_ERROR_CHECK(i2s_new_channel(&rx_chan_cfg, NULL, &rx_handle));
@@ -99,7 +99,6 @@ i2s_chan_handle_t init_i2s_write(void)
     ESP_ERROR_CHECK(i2s_channel_enable(tx_handle));
 
     return tx_handle;
-
 }
 
 size_t bytes_read = 0;
