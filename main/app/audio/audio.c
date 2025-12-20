@@ -11,6 +11,8 @@
 #include "app_sr.h"
 #include "esp_board_init.h"
 
+#include "opus.h"
+
 // 配置参数
 #define PLAYBACK_TIMEOUT_MS 5000
 #define SETTING_FILE_PATH "/spiffs/setting.json" // 设置文件路径
@@ -19,8 +21,12 @@
 
 #define BUFFER_SIZE (1024 * 2) // 环形缓冲区大小（字节）
 
+// 帧头长度定义（需放在函数外，确保可见）
+#define FRAME_HEADER_SIZE 6                         // 帧头固定6字节
+#define OPUS_DATA_MAX_LEN (300 - FRAME_HEADER_SIZE) // 预留帧头后，OPUS数据最大长度
+
 // 公共缓冲区：存储OPUS编码后的字节数据
-uint8_t opus_output_buffer[BUFFER_SIZE];
+uint8_t opus_output_buffer[BUFFER_SIZE] = {0};
 static size_t buffer_write_pos = 0; // 环形缓冲区写入位置（按字节计）
 
 static const char *TAG = "audio";
@@ -36,6 +42,8 @@ extern QueueHandle_t audio_encode_queue;
 
 extern void decoder_ops_register(audio_decoder_t *decoder);
 extern void encoder_ops_register(audio_encoder_t *encoder);
+
+uint16_t audio_packet_seq = 0; // 音频包序列号
 
 /**
  * @brief 注册并初始化音频解码器
@@ -190,7 +198,7 @@ esp_err_t audio_get_opus_data(uint8_t *out_buf, uint16_t req_len)
     }
 
     // ========== 加锁：访问缓冲区前获取互斥锁 ==========
-    if (xSemaphoreTake(opus_buffer_mutex, pdMS_TO_TICKS(10)) != pdTRUE)
+    if (xSemaphoreTake(opus_buffer_mutex, pdMS_TO_TICKS(portMAX_DELAY)) != pdTRUE)
     {
         ESP_LOGE(TAG, "Failed to take buffer mutex (reader)");
         return ESP_FAIL;
@@ -265,9 +273,154 @@ static void audio_encoder_deinit(audio_encoder_t *encoder)
  */
 void audio_decoder_task(void *pvParameters)
 {
-    while (1)
+    BaseType_t xStatus;
+    uint16_t packet_len = 0;
+    uint8_t opus_packet_buffer[300] = {0}; // 存储从缓冲区读取的完整数据包（包含帧头）
+    uint8_t *opus_data_ptr = NULL;         // 指向OPUS数据部分（跳过帧头）
+    uint16_t opus_data_len = 0;            // OPUS数据长度（不含帧头）
+    int16_t pcm_output[960] = {0};         // PCM输出缓冲区（16000Hz * 0.06s = 960采样点）
+    int decoded_samples = 0;               // 解码得到的采样点数
+
+    // OPUS解码器相关变量
+    OpusDecoder *opus_decoder = NULL;
+    int opus_error = 0;
+
+    // 前置校验：队列句柄不能为空
+    if (ws_send_queue == NULL)
     {
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        ESP_LOGE(TAG, "Fatal error: ws_send_queue is NULL");
+        return;
+    }
+
+    // 1. 创建OPUS解码器
+    opus_decoder = opus_decoder_create(
+        16000,      // 采样率：16kHz
+        1,          // 声道数：单声道
+        &opus_error // 错误码输出
+    );
+
+    if (opus_error != OPUS_OK || opus_decoder == NULL)
+    {
+        ESP_LOGE(TAG, "Failed to create OPUS decoder, error: %d", opus_error);
+        return;
+    }
+
+    ESP_LOGI(TAG, "OPUS decoder created successfully (16kHz, mono, 16bit)");
+
+    // 2. 主循环：等待队列数据并解码播放
+    for (;;)
+    {
+        // 从ws_send_queue获取数据包长度（永久阻塞）
+        xStatus = xQueueReceive(
+            ws_send_queue, // 队列句柄
+            &packet_len,   // 接收缓冲区（数据包总长度）
+            portMAX_DELAY  // 永久阻塞
+        );
+
+        if (xStatus != pdPASS)
+        {
+            ESP_LOGE(TAG, "Failed to receive from ws_send_queue");
+            continue;
+        }
+
+        // 3. 从公共缓冲区读取完整数据包
+        esp_err_t read_ret = audio_get_opus_data(opus_packet_buffer, packet_len);
+        if (read_ret != ESP_OK)
+        {
+            ESP_LOGE(TAG, "Failed to read OPUS packet from buffer");
+            continue;
+        }
+
+        // printf("Received OPUS packet: %u bytes\n", packet_len);
+        // for (int i = 0; i < packet_len; i++)
+        // {
+        //     printf("%02X ", opus_packet_buffer[i]);
+        // }
+        // printf("\n");
+
+        // 4. 解析帧头并提取OPUS数据
+        if (packet_len < FRAME_HEADER_SIZE)
+        {
+            ESP_LOGE(TAG, "Invalid packet: too short (%u bytes)", packet_len);
+            continue;
+        }
+
+        // 验证帧头标识（0xAA55）
+        if (opus_packet_buffer[0] != 0xAA || opus_packet_buffer[1] != 0x55)
+        {
+            ESP_LOGE(TAG, "Invalid frame header: 0x%02X%02X",
+                     opus_packet_buffer[0], opus_packet_buffer[1]);
+            continue;
+        }
+
+        // 提取包序号（用于调试，可选）
+        uint16_t packet_seq = (opus_packet_buffer[2] << 8) | opus_packet_buffer[3];
+
+        // 提取OPUS数据长度（大端序）
+        opus_data_len = (opus_packet_buffer[4] << 8) | opus_packet_buffer[5];
+
+        // 校验OPUS数据长度
+        if (opus_data_len == 0 || opus_data_len > (packet_len - FRAME_HEADER_SIZE))
+        {
+            ESP_LOGE(TAG, "Invalid OPUS data length: %u (packet_len=%u)",
+                     opus_data_len, packet_len);
+            continue;
+        }
+
+        // 指向OPUS数据部分（跳过6字节帧头）
+        opus_data_ptr = opus_packet_buffer + FRAME_HEADER_SIZE;
+
+        ESP_LOGD(TAG, "Received OPUS packet: seq=%u, opus_len=%u", packet_seq, opus_data_len);
+
+        // 5. 调用OPUS解码器解码
+        decoded_samples = opus_decode(
+            opus_decoder,  // 解码器实例
+            opus_data_ptr, // OPUS数据指针
+            opus_data_len, // OPUS数据长度
+            pcm_output,    // PCM输出缓冲区
+            960,           // 最大输出采样点数（16kHz * 60ms = 960）
+            0              // FEC标志（0=正常解码）
+        );
+
+        // 6. 检查解码结果
+        if (decoded_samples < 0)
+        {
+            ESP_LOGE(TAG, "OPUS decode failed, error: %d", decoded_samples);
+            continue;
+        }
+
+        if (decoded_samples == 0)
+        {
+            ESP_LOGW(TAG, "OPUS decode returned 0 samples");
+            continue;
+        }
+
+        ESP_LOGD(TAG, "OPUS decoded successfully: %d samples", decoded_samples);
+
+        // 7. 通过I2S播放PCM数据
+        esp_err_t i2s_ret = esp_i2s_write(
+            pcm_output,         // PCM数据缓冲区
+            decoded_samples * 2 // 字节数（int16_t占2字节）
+        );
+
+        if (i2s_ret != ESP_OK)
+        {
+            ESP_LOGE(TAG, "I2S write failed: %s", esp_err_to_name(i2s_ret));
+            continue;
+        }
+
+        ESP_LOGD(TAG, "PCM data written to I2S: %d samples (%d bytes)",
+                 decoded_samples, decoded_samples * 2);
+
+        // 8. 可选：添加延时避免任务占用过多CPU
+        vTaskDelay(pdMS_TO_TICKS(5));
+    }
+
+    // 9. 清理资源（正常情况下不会执行到这里）
+    if (opus_decoder != NULL)
+    {
+        opus_decoder_destroy(opus_decoder);
+        ESP_LOGI(TAG, "OPUS decoder destroyed");
     }
 }
 
@@ -277,7 +430,10 @@ void audio_encoder_task(void *pvParameters)
     int16_t pcm_buf[960] = {0};
     uint8_t opus_buf[300] = {0};
     uint16_t encoded_bytes = 0;
+    uint16_t total_packet_len = 0; // 总数据包长度（帧头6字节 + OPUS数据长度）
     audio_encoder_t *encoder = NULL;
+    opus_buf[0] = 0xAA;
+    opus_buf[1] = 0x55;
 
     // 前置校验：队列句柄不能为空（避免空指针调用）
     if (audio_encode_queue == NULL || ws_send_queue == NULL)
@@ -314,58 +470,97 @@ void audio_encoder_task(void *pvParameters)
         // 处理取数结果
         if (xStatus == pdPASS)
         {
+            memset(opus_buf + 2, 0, 300 - 2); // 清空除帧头外的缓冲区部分
+            // // 通过I2S播放PCM数据，用于测试
+            // esp_err_t i2s_ret = esp_i2s_write(
+            //     pcm_buf,                 // PCM数据缓冲区
+            //     960 * 2         // 字节数（int16_t占2字节）
+            // );
+
+            // if (i2s_ret != ESP_OK)
+            // {
+            //     ESP_LOGE(TAG, "I2S write failed: %s", esp_err_to_name(i2s_ret));
+            //     continue;
+            // }
+
             // 调用你的opus_encode_frame编码PCM数据
             encoder_result_t ret = encoder->encode_frame(
-                encoder,          // 编码器实例
-                pcm_buf,          // PCM输入数据
-                960,              // 采样数(样本数)
-                opus_buf,         // OPUS输出缓冲区
-                sizeof(opus_buf), // 缓冲区大小
-                &encoded_bytes    // 实际编码字节数
+                encoder,                      // 编码器实例
+                pcm_buf,                      // PCM输入数据
+                960,                          // 采样数(样本数)
+                opus_buf + FRAME_HEADER_SIZE, // OPUS输出缓冲区
+                OPUS_DATA_MAX_LEN,            // 缓冲区大小
+                &encoded_bytes                // 实际编码字节数
             );
+            // printf("编码 OPUS packet: %u bytes\n", encoded_bytes);
+            // for (int i = 6; i < 6 + encoded_bytes; i++)
+            // {
+            //     printf("%02X ", opus_buf[i]);
+            // }
+            // printf("\n");
 
             if (ret == ENCODER_OK && encoded_bytes > 0)
             {
-                // ESP_LOGI("ENCODE", "Encoded PCM to OPUS: %u", encoded_bytes);
-                // 编码成功后，可将opus_buf通过WebSocket发送等
                 // ========== 加锁：访问缓冲区前获取互斥锁 ==========
                 if (xSemaphoreTake(opus_buffer_mutex, pdMS_TO_TICKS(10)) != pdTRUE)
                 {
                     ESP_LOGE(TAG, "Failed to take buffer mutex (encoder)");
                     continue; // 拿不到锁，丢弃当前帧
                 }
+                // 包序号（16位大端）
+                opus_buf[2] = (audio_packet_seq >> 8) & 0xFF; // 高8位
+                opus_buf[3] = audio_packet_seq & 0xFF;        // 低8位
+                // OPUS数据长度（16位大端）
+                opus_buf[4] = (encoded_bytes >> 8) & 0xFF;            // 高8位
+                opus_buf[5] = encoded_bytes & 0xFF;                   // 低8位
+                total_packet_len = FRAME_HEADER_SIZE + encoded_bytes; // 计算总数据包长度（帧头+OPUS数据）
+                                                                      // 序号递增（0-65535循环）
+                audio_packet_seq = (audio_packet_seq + 1) % 65536;
+                // ESP_LOGI("ENCODE", "Encoded PCM to OPUS: %u", encoded_bytes);
+                // 编码成功后，可将opus_buf通过WebSocket发送等
+
                 // ========== 核心逻辑：检查缓冲区剩余空间 ==========
                 size_t remain_space = BUFFER_SIZE - buffer_write_pos;
-                if (encoded_bytes > remain_space)
+                if (total_packet_len > remain_space)
                 {
                     // 剩余空间不足，丢弃当前帧
                     ESP_LOGW(TAG, "Buffer full! Need %u bytes, remain %u bytes",
-                             encoded_bytes, remain_space);
+                             total_packet_len, remain_space);
                     xSemaphoreGive(opus_buffer_mutex); // 解锁
                     continue;
                 }
+
+                // printf("发送 OPUS packet: %u bytes\n", total_packet_len);
+                // for (int i = 0; i < total_packet_len; i++)
+                // {
+                //     printf("%02X ", opus_buf[i]);
+                // }
+                // printf("\n");
+
                 // 空间足够：拷贝OPUS数据到公共缓冲区
-                memcpy(opus_output_buffer + buffer_write_pos, opus_buf, encoded_bytes);
+                memcpy(opus_output_buffer + buffer_write_pos, opus_buf, total_packet_len);
 
                 // 更新写入位置
-                buffer_write_pos += encoded_bytes;
+                buffer_write_pos += total_packet_len;
                 ESP_LOGI(TAG, "Store OPUS to buffer: %u bytes, write_pos=%u",
-                         encoded_bytes, buffer_write_pos);
+                         total_packet_len, buffer_write_pos);
 
                 // 发送encoded_bytes到ws_send_queue（非阻塞，避免任务卡死）
                 BaseType_t send_ret = xQueueSend(
                     ws_send_queue,
-                    &encoded_bytes,
+                    &total_packet_len,
                     0 // 0超时=非阻塞，队列满则丢弃
                 );
                 if (send_ret != pdPASS)
                 {
                     ESP_LOGE(TAG, "ws_send_queue full! Drop frame");
                     // 队列满时回滚写入位置（丢弃当前帧，避免缓冲区数据无效）
-                    buffer_write_pos -= encoded_bytes;
+                    buffer_write_pos -= total_packet_len;
                 }
                 // ========== 解锁：释放互斥锁 ==========
                 xSemaphoreGive(opus_buffer_mutex);
+            } else {
+                ESP_LOGE(TAG, "OPUS encode failed: %d", ret);
             }
         }
         vTaskDelay(pdMS_TO_TICKS(10));
@@ -390,30 +585,30 @@ esp_err_t audio_init()
     ws_send_queue = xQueueCreate(20, sizeof(uint16_t));
     ESP_RETURN_ON_FALSE(ws_send_queue != NULL, ESP_FAIL, TAG, "Failed create ws send queue");
 
+    // BaseType_t ret_val = xTaskCreatePinnedToCore(
+    //     audio_decoder_task,
+    //     "audio_decoder_task",
+    //     12 * 1024,
+    //     NULL,
+    //     5,
+    //     &audio_decoder_task_handle,
+    //     1);
+
+    // if (ret_val != pdPASS)
+    // {
+    //     ESP_LOGE(TAG, "Failed to create audio decoder task");
+    // }
+    // else
+    // {
+    //     ESP_LOGI(TAG, "Audio decoder task created successfully");
+    // }
+
     BaseType_t ret_val = xTaskCreatePinnedToCore(
-        audio_decoder_task,
-        "audio_decoder_task",
-        12 * 1024,
-        NULL,
-        3,
-        &audio_decoder_task_handle,
-        1);
-
-    if (ret_val != pdPASS)
-    {
-        ESP_LOGE(TAG, "Failed to create audio decoder task");
-    }
-    else
-    {
-        ESP_LOGI(TAG, "Audio decoder task created successfully");
-    }
-
-    ret_val = xTaskCreatePinnedToCore(
         audio_encoder_task,
         "audio_encoder_task",
-        12 * 1024,
+        16 * 1024,
         NULL,
-        3,
+        4,
         &audio_encoder_task_handle,
         1);
 
