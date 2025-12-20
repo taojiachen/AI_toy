@@ -40,7 +40,7 @@ static decoder_result_t decoder_init(audio_decoder_t *decoder)
     decoder->info.sample_rate = CONFIG_OPUS_AUDIO_SAMPLE_RATE;
     decoder->info.channels = CONFIG_OPUS_AUDIO_CHANNELS;
     
-    // // ESP_LOGI(TAG_OPUS, "[OPUS] Decoder initialized");
+    // ESP_LOGI(TAG_OPUS, "[OPUS] Decoder initialized");
     return DECODER_OK;
 }
 
@@ -272,8 +272,8 @@ static encoder_result_t encoder_init(audio_encoder_t *encoder)
     if (err != OPUS_OK) {
         ESP_LOGE(TAG_OPUS, "[OPUS] Set bitrate failed: %s", opus_strerror(err));
     }
-    // 2. 复杂度（0-10，越低越快，越高音质越好，默认 9，这里设置为5）
-    err = opus_encoder_ctl(ctx->opus_encoder, OPUS_SET_COMPLEXITY(5));
+    // 2. 复杂度（0-10，越低越快，越高音质越好，默认 9，这里设置为0）
+    err = opus_encoder_ctl(ctx->opus_encoder, OPUS_SET_COMPLEXITY(0));
     if (err != OPUS_OK) {
         ESP_LOGE(TAG_OPUS, "[OPUS] Set complexity failed: %s", opus_strerror(err));
     }

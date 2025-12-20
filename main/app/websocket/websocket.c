@@ -18,7 +18,7 @@ static const char *TAG = "WS_CLIENT";
 
 // 内置默认配置参数（所有配置集中在这里）
 #define WS_DEFAULT_PING_INTERVAL 10          // PING间隔(秒)
-#define WS_DEFAULT_BUFFER_SIZE (8 * 1024)    // 缓冲区大小
+#define WS_DEFAULT_BUFFER_SIZE (12 * 1024)    // 缓冲区大小
 #define WS_DEFAULT_NETWORK_TIMEOUT 20000     // 网络超时(毫秒)
 #define WS_DEFAULT_MAX_RECONNECT 15          // 最大重连次数
 #define WS_DEFAULT_INIT_RECONNECT_DELAY 2000 // 初始重连延迟(毫秒)
@@ -70,6 +70,8 @@ typedef struct
 static ws_context_t g_ws_ctx = {0};
 
 TaskHandle_t ws_send_opus_task_handle = NULL;
+
+QueueHandle_t ws_recv_queue = NULL;
 
 extern QueueHandle_t ws_send_queue;
 
@@ -192,6 +194,7 @@ static void ws_event_handler(void *handler_args, esp_event_base_t base,
     case WEBSOCKET_EVENT_DATA:
         if (data && data->data_len > 0 && g_ws_ctx.data_handler)
         {
+
         }
         break;
 
@@ -236,7 +239,7 @@ static void ws_reconnect_timer_cb(TimerHandle_t timer)
     ESP_LOGI(TAG, "重连定时器触发");
 
     // 创建重连任务
-    if (xTaskCreate(ws_reconnect_task, "ws_reconnect", 1024 * 8, NULL, 5, &g_ws_ctx.reconnect_task) != pdPASS)
+    if (xTaskCreate(ws_reconnect_task, "ws_reconnect", 1024 * 3, NULL, 4, &g_ws_ctx.reconnect_task) != pdPASS)
     {
         ESP_LOGE(TAG, "创建重连任务失败");
         // 重新启动定时器
@@ -562,6 +565,9 @@ esp_err_t ws_send_opus_task(void *pvParameters)
  */
 esp_err_t ws_start(const char *uri)
 {
+    ws_recv_queue = xQueueCreate(20, sizeof(uint16_t));
+    ESP_RETURN_ON_FALSE(ws_recv_queue != NULL, ESP_FAIL, TAG, "Failed create ws recv queue");
+
     if (uri == NULL || strlen(uri) == 0)
     {
         ESP_LOGE(TAG, "无效的WS地址");
@@ -611,7 +617,7 @@ esp_err_t ws_start(const char *uri)
 
     ESP_LOGI(TAG, "WebSocket客户端启动成功，连接地址: %s", uri);
 
-    xTaskCreate(ws_send_opus_task, "ws_send_opus_task", 1024 * 8, NULL, 5, &ws_send_opus_task_handle);
+    xTaskCreate(ws_send_opus_task, "ws_send_opus_task", 1024 * 4, NULL, 5, &ws_send_opus_task_handle);
     return ESP_OK;
 }
 

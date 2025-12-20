@@ -31,11 +31,11 @@ static bool is_recording = false;           // 是否正在采集音频
 static int recording_duration_ms = 30000;   // 采集时长（30秒，可自定义）
 static TickType_t recording_start_tick = 0; // 采集开始时间戳
 
-static int16_t pcm_outptu_ring_buffer[BYTES_PER_FRAME * 2] = {0}; // 环形缓冲区用于存储音频数据（2倍帧大小）
+static int16_t pcm_output_ring_buffer[BYTES_PER_FRAME * 2] = {0}; // 环形缓冲区用于存储音频数据（2倍帧大小）
 static size_t ring_buffer_write_pos = 0; // 环形缓冲区写入位置（按样本数计）
 
 // 环形缓冲区辅助宏定义
-#define RING_BUFFER_TOTAL_SAMPLES (sizeof(pcm_outptu_ring_buffer) / sizeof(pcm_outptu_ring_buffer[0]))  // 总样本数（int16_t）
+#define RING_BUFFER_TOTAL_SAMPLES (sizeof(pcm_output_ring_buffer) / sizeof(pcm_output_ring_buffer[0]))  // 总样本数（int16_t）
 #define FRAME_SAMPLES (BYTES_PER_FRAME / sizeof(int16_t))                         // 每帧需要的样本数
 
 static void audio_feed_task(void *pvParam)
@@ -69,11 +69,27 @@ static void audio_feed_task(void *pvParam)
 static void audio_detect_task(void *pvParam)
 {
     esp_afe_sr_data_t *afe_data = (esp_afe_sr_data_t *)pvParam;
+    if (afe_data == NULL) {
+        ESP_LOGE(TAG, "audio_detect_task: afe_data is NULL");
+        vTaskDelete(NULL);
+        return;
+    }
+
+    if (afe_handle == NULL) {
+        ESP_LOGE(TAG, "audio_detect_task: afe_handle is NULL");
+        vTaskDelete(NULL);
+        return;
+    }
     ESP_LOGI(TAG, "------------detect start------------\n");
 
     while (true)
     {
         afe_fetch_result_t *res = afe_handle->fetch(afe_data);
+        if (res == NULL) {
+            ESP_LOGE(TAG, "afe_fetch returned NULL");
+            vTaskDelay(pdMS_TO_TICKS(5));
+            continue;
+        }
         // ESP_LOGI(TAG, "fetch data size: %d", res->data_size);  //fetch data size: 1024字节
 
         if (res && res->ringbuff_free_pct > 0)
@@ -90,8 +106,12 @@ static void audio_detect_task(void *pvParam)
             afe_handle->disable_wakenet(afe_data);
 
             // 通知服务器已检测到唤醒词
-            const char *wakeup_msg = "{\"type\":\"wakeup\"}";
-            ws_send_text(wakeup_msg, strlen(wakeup_msg));
+            if (ws_is_connected()) {
+                const char *wakeup_msg = "{\"type\":\"wakeup\"}";
+                ws_send_text(wakeup_msg, strlen(wakeup_msg));
+            } else {
+                ESP_LOGW(TAG, "WebSocket not connected, skip wakeup msg");
+            }
             continue;
         }
 
@@ -130,13 +150,13 @@ static void audio_detect_task(void *pvParam)
                 if (remaining >= sample_count)
                 {
                     // 剩余空间足够，直接拷贝
-                    memcpy(&pcm_outptu_ring_buffer[ring_buffer_write_pos], pcm_data, sample_count * sizeof(int16_t));
+                    memcpy(&pcm_output_ring_buffer[ring_buffer_write_pos], pcm_data, sample_count * sizeof(int16_t));
                 }
                 else
                 {
                     // 剩余空间不足，先写缓冲区末尾，再写开头
-                    memcpy(&pcm_outptu_ring_buffer[ring_buffer_write_pos], pcm_data, remaining * sizeof(int16_t));
-                    memcpy(pcm_outptu_ring_buffer, pcm_data + remaining, (sample_count - remaining) * sizeof(int16_t));
+                    memcpy(&pcm_output_ring_buffer[ring_buffer_write_pos], pcm_data, remaining * sizeof(int16_t));
+                    memcpy(pcm_output_ring_buffer, pcm_data + remaining, (sample_count - remaining) * sizeof(int16_t));
                 }
 
                 // 更新环形缓冲区写入位置（环形取模）
@@ -149,7 +169,7 @@ static void audio_detect_task(void *pvParam)
                     // 临时缓冲区存储要发送的一帧数据
                     int16_t frame_data[FRAME_SAMPLES] = {0};
                     // 从缓冲区开头拷贝一帧数据
-                    memcpy(frame_data, pcm_outptu_ring_buffer, FRAME_SAMPLES * sizeof(int16_t));
+                    memcpy(frame_data, pcm_output_ring_buffer, FRAME_SAMPLES * sizeof(int16_t));
 
                     // 非阻塞方式发送到队列，队列满则丢弃
                     BaseType_t send_status = xQueueSend(audio_encode_queue, frame_data, 0);
@@ -164,7 +184,7 @@ static void audio_detect_task(void *pvParam)
                     }
 
                     // 将缓冲区剩余数据前移，覆盖已发送的帧数据
-                    memmove(pcm_outptu_ring_buffer, &pcm_outptu_ring_buffer[FRAME_SAMPLES], 
+                    memmove(pcm_output_ring_buffer, &pcm_output_ring_buffer[FRAME_SAMPLES], 
                             (RING_BUFFER_TOTAL_SAMPLES - FRAME_SAMPLES) * sizeof(int16_t));
                     // 更新写入位置（减去已发送的样本数）
                     ring_buffer_write_pos -= FRAME_SAMPLES;
@@ -174,6 +194,7 @@ static void audio_detect_task(void *pvParam)
                 }
             }
         }
+        vTaskDelay(pdMS_TO_TICKS(5)); // 避免任务饥饿
     }
 
     /* Clean up if audio feed ends */
@@ -214,7 +235,7 @@ esp_err_t app_sr_start(void)
     afe_config->vad_init = true;     // 启用VAD
     afe_config->wakenet_init = true; // 启用唤醒词引擎
 
-    afe_config->vad_mode = VAD_MODE_4; // VAD模式（中等灵敏度）
+    afe_config->vad_mode = VAD_MODE_2; // VAD模式（灵敏度）
 
     afe_config->wakenet_model_name = esp_srmodel_filter(models, ESP_WN_PREFIX, NULL);
     afe_config->wakenet_model_name_2 = NULL; // 不使用第二个唤醒模型
@@ -223,7 +244,7 @@ esp_err_t app_sr_start(void)
     afe_config->afe_mode = AFE_MODE_HIGH_PERF;                   // 修正枚举值
     afe_config->afe_perferred_core = 0;                          // 偏好核心0
     afe_config->afe_perferred_priority = 5;                      // 任务优先级5
-    afe_config->afe_ringbuf_size = 150;                          // 增大环形缓冲区大小到300，解决"ringbuffer full"问题
+    afe_config->afe_ringbuf_size = 50;                          // 增大环形缓冲区大小到300，解决"ringbuffer full"问题
     afe_config->memory_alloc_mode = AFE_MEMORY_ALLOC_MORE_PSRAM; // 优先使用PSRAM
     afe_config->afe_linear_gain = 1.0;                           // 线性增益1.0
 
@@ -261,7 +282,7 @@ esp_err_t app_sr_start(void)
     BaseType_t ret_val = xTaskCreatePinnedToCore(audio_feed_task, "Feed Task", 8 * 1024, afe_data, 3, &audio_feed_task_handle, 1);
     ESP_RETURN_ON_FALSE(pdPASS == ret_val, ESP_FAIL, TAG, "Failed create audio feed task");
 
-    ret_val = xTaskCreatePinnedToCore(audio_detect_task, "Detect Task", 6 * 1024, afe_data, 5, &audio_detect_task_handle, 0);
+    ret_val = xTaskCreatePinnedToCore(audio_detect_task, "Detect Task", 6 * 1024, afe_data, 4, &audio_detect_task_handle, 0);
     ESP_RETURN_ON_FALSE(pdPASS == ret_val, ESP_FAIL, TAG, "Failed create audio detect task");
 
     return ESP_OK;
