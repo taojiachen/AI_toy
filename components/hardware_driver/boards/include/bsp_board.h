@@ -17,9 +17,9 @@
 #define MAX98357A_DIN_PIN 7
 
 #define SAMPLE_RX_RATE 16000
-#define SAMPLE_TX_RATE 24000
+#define SAMPLE_TX_RATE 16000
 #define DMA_BUF_COUNT 8
-#define DMA_BUF_LEN 1024
+#define DMA_BUF_LEN 1920
 
 esp_err_t bsp_board_init();
 

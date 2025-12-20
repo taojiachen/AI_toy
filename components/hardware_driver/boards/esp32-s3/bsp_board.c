@@ -14,7 +14,7 @@
 #include <bsp_err_check.h>
 
 //#define ADC_I2S_CHANNEL 1
-static const char *TAG = "bspboard";
+static const char *TAG = "bsp_board";
 
 i2s_chan_handle_t rx_handle;
 i2s_chan_handle_t tx_handle;
