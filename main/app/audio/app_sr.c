@@ -279,10 +279,10 @@ esp_err_t app_sr_start(void)
 
     ESP_LOGI(TAG, "load wakenet:%s", afe_config->wakenet_model_name);
 
-    BaseType_t ret_val = xTaskCreatePinnedToCore(audio_feed_task, "Feed Task", 8 * 1024, afe_data, 3, &audio_feed_task_handle, 1);
+    BaseType_t ret_val = xTaskCreatePinnedToCore(audio_feed_task, "Feed Task", 6 * 1024, afe_data, 4, &audio_feed_task_handle, 1);
     ESP_RETURN_ON_FALSE(pdPASS == ret_val, ESP_FAIL, TAG, "Failed create audio feed task");
 
-    ret_val = xTaskCreatePinnedToCore(audio_detect_task, "Detect Task", 6 * 1024, afe_data, 4, &audio_detect_task_handle, 0);
+    ret_val = xTaskCreatePinnedToCore(audio_detect_task, "Detect Task", 4 * 1024, afe_data, 3, &audio_detect_task_handle, 0);
     ESP_RETURN_ON_FALSE(pdPASS == ret_val, ESP_FAIL, TAG, "Failed create audio detect task");
 
     return ESP_OK;

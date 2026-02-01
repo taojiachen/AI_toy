@@ -21,11 +21,14 @@ typedef struct {
     uint8_t read_page_cnt;
 } opus_decoder_context_t;
 
+#define OPUS_BUFF_SIZE 960
+
 static decoder_result_t decoder_init(audio_decoder_t *decoder)
 {
     // ESP_LOGI(TAG_OPUS, "[OPUS] Decoder intialization started");
     opus_decoder_context_t *ctx = malloc(sizeof(opus_decoder_context_t));
     if (!ctx) {
+        ESP_LOGE(TAG_OPUS, "[OPUS] Failed to allocate decoder context memory");
         return DECODER_ERROR;
     }
     
@@ -34,17 +37,18 @@ static decoder_result_t decoder_init(audio_decoder_t *decoder)
     
     if (ogg_sync_init(&ctx->ogsync) < 0) {
         free(ctx);
+        ESP_LOGE(TAG_OPUS, "[OPUS] Failed to initialize ogg sync state");
         return DECODER_ERROR;
     }
     
-    decoder->info.sample_rate = CONFIG_OPUS_AUDIO_SAMPLE_RATE;
+    decoder->info.sample_rate = CONFIG_OPUS_AUDIO_DECODER_SAMPLE_RATE;
     decoder->info.channels = CONFIG_OPUS_AUDIO_CHANNELS;
     
     // ESP_LOGI(TAG_OPUS, "[OPUS] Decoder initialized");
     return DECODER_OK;
 }
 
-static decoder_result_t opus_decode_frame(audio_decoder_t *decoder, FILE *file, int16_t *output, uint32_t *samples_decoded)
+static decoder_result_t opus_decode_frame(audio_decoder_t *decoder, data_source_t *source, int16_t *output, uint32_t *samples_decoded)
 {
     opus_decoder_context_t *ctx = (opus_decoder_context_t *)decoder->context;
     int err;
@@ -66,7 +70,7 @@ static decoder_result_t opus_decode_frame(audio_decoder_t *decoder, FILE *file, 
         }
 
         int page_ret = ogg_sync_pageout(&ctx->ogsync, &ctx->current_page);
-        // log_d("page_ret:%d", page_ret);
+        // ESP_LOGD(TAG_OPUS, "[OPUS] Page ret: %d", page_ret);
         if (page_ret == 1) {
             if (!ctx->stream_inited) {
                 if (ogg_stream_init(&ctx->ogstream, ogg_page_serialno(&ctx->current_page)) < 0) {
@@ -83,13 +87,19 @@ static decoder_result_t opus_decode_frame(audio_decoder_t *decoder, FILE *file, 
             }
             continue;
         } else if (page_ret == 0) {
+            size_t bytes_read = 0;
             char *buffer = ogg_sync_buffer(&ctx->ogsync, CONFIG_OPUS_FILE_BUFF_SIZE);
             if (!buffer) {
                 // ESP_LOGE(TAG_OPUS, "[OPUS] Sync buffer failed");
                 return DECODER_ERROR;
             }
+            if(source->type == AUDIO_DATA_TYPE_FILE) {
+                bytes_read = fread(buffer, 1, CONFIG_OPUS_FILE_BUFF_SIZE, source->data.file);
+            } else if(source->type == AUDIO_DATA_TYPE_BUFFER) {
+                bytes_read = mread(buffer, OPUS_BUFF_SIZE); // 每次读取480字节数据
+                // ESP_LOGI(TAG_OPUS, "[OPUS] Read %d bytes from file", (int)bytes_read);
+            }
             
-            size_t bytes_read = fread(buffer, 1, CONFIG_OPUS_FILE_BUFF_SIZE, file);
             if (bytes_read < 0) {
                 // ESP_LOGE(TAG_OPUS, "[OPUS] File read error");
                 return DECODER_ERROR;
@@ -108,7 +118,7 @@ static decoder_result_t opus_decode_frame(audio_decoder_t *decoder, FILE *file, 
             // LOG_DBG("[OPUS] Read %d bytes from file", (int)bytes_read);
             continue;
         } else {
-            // // ESP_LOGE(TAG_OPUS, "[OPUS] Page sync error: %d", page_ret);
+           // // ESP_LOGE(TAG_OPUS, "[OPUS] Page sync error: %d", page_ret);
             return DECODER_ERROR;
         }
     }
@@ -135,7 +145,7 @@ decode_packet:
                 // ESP_LOGI(TAG_OPUS, "[OPUS] Sample rate: %ld Hz", decoder->info.sample_rate);
                 
                 if (decoder->info.sample_rate < 8000 || decoder->info.sample_rate > 48000) {
-                    // ESP_LOGE(TAG_OPUS, "[OPUS] Invalid sample rate: %ld", decoder->info.sample_rate);
+                    ESP_LOGE(TAG_OPUS, "[OPUS] Invalid sample rate: %ld", decoder->info.sample_rate);
                     return DECODER_ERROR;
                 }
                 
@@ -165,7 +175,7 @@ decode_packet:
         return DECODER_HEADER_ONLY;
     }
     
-    opus_int32 output_samples = opus_decode(ctx->opus_decoder, ctx->current_packet.packet, ctx->current_packet.bytes,output, CONFIG_OPUS_FRAME_SAMPLES_MAX, 0);
+    opus_int32 output_samples = opus_decode(ctx->opus_decoder, ctx->current_packet.packet, ctx->current_packet.bytes,output, OPUS_BUFF_SIZE, 0);
     
     if (output_samples < 0) {
         // ESP_LOGE(TAG_OPUS, "[OPUS] Decode warning: %s", opus_strerror(output_samples));
@@ -234,7 +244,7 @@ static encoder_result_t encoder_init(audio_encoder_t *encoder)
     }
     memset(ctx, 0, sizeof(opus_encoder_context_t));
     encoder->context = ctx;
-    encoder->info.sample_rate = CONFIG_OPUS_AUDIO_SAMPLE_RATE;
+    encoder->info.sample_rate = CONFIG_OPUS_AUDIO_ENCODER_SAMPLE_RATE;
     encoder->info.channels = CONFIG_OPUS_AUDIO_CHANNELS;
     encoder->info.bitrate = 16000;
     encoder->info.frame_samples = (encoder->info.sample_rate * 60) / 1000;   // 每帧60ms
@@ -349,7 +359,7 @@ static encoder_result_t opus_encode_frame(audio_encoder_t *encoder,
     }
 
     *bytes_encoded = encode_ret;
-    ESP_LOGI(TAG_OPUS, "[OPUS] Encoded %lu samples -> %d bytes", input_samples, encode_ret);
+    // ESP_LOGI(TAG_OPUS, "[OPUS] Encoded %lu samples -> %d bytes", input_samples, encode_ret);
     return ENCODER_OK;
 }
 

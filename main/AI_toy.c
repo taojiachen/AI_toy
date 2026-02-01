@@ -34,7 +34,7 @@ void app_main(void)
     app_sntp_init();
     ESP_ERROR_CHECK(app_sr_start());
     ESP_ERROR_CHECK(audio_init());
-    ws_start("wss://192.168.38.44:8765");
+    ws_start("wss://192.168.223.44:8765");
 
     vTaskDelay(5000 / portTICK_PERIOD_MS);
     

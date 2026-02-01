@@ -9,8 +9,9 @@
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 #include "freertos/timers.h"
-#include "websocket.h"
+#include "cJSON.h"
 
+#include "websocket.h"
 #include "audio.h"
 
 // 日志标签
@@ -18,13 +19,13 @@ static const char *TAG = "WS_CLIENT";
 
 // 内置默认配置参数（所有配置集中在这里）
 #define WS_DEFAULT_PING_INTERVAL 10          // PING间隔(秒)
-#define WS_DEFAULT_BUFFER_SIZE (12 * 1024)    // 缓冲区大小
+#define WS_DEFAULT_BUFFER_SIZE (8 * 1024)   // 缓冲区大小
 #define WS_DEFAULT_NETWORK_TIMEOUT 20000     // 网络超时(毫秒)
 #define WS_DEFAULT_MAX_RECONNECT 15          // 最大重连次数
 #define WS_DEFAULT_INIT_RECONNECT_DELAY 2000 // 初始重连延迟(毫秒)
 #define WS_DEFAULT_MAX_RECONNECT_DELAY 30000 // 最大重连延迟(毫秒)
 #define WS_DEFAULT_SKIP_CERT_CHECK true      // 是否跳过证书检查
-#define MAX_OPUS_FRAME_LEN 300
+#define MAX_OPUS_FRAME_LEN 200
 // ==========================================================================================
 
 // WebSocket配置结构体（内部使用）
@@ -70,8 +71,6 @@ typedef struct
 static ws_context_t g_ws_ctx = {0};
 
 TaskHandle_t ws_send_opus_task_handle = NULL;
-
-QueueHandle_t ws_recv_queue = NULL;
 
 extern QueueHandle_t ws_send_queue;
 
@@ -192,9 +191,40 @@ static void ws_event_handler(void *handler_args, esp_event_base_t base,
         break;
 
     case WEBSOCKET_EVENT_DATA:
-        if (data && data->data_len > 0 && g_ws_ctx.data_handler)
+        if(data->op_code == 2) // 二进制数据
         {
+            ESP_LOGI(TAG, "收到二进制数据，长度: %d", data->data_len);
 
+            // 调用数据处理回调
+            if (g_ws_ctx.data_handler)
+            {
+                // ESP_LOGI(TAG, "调用回调函数");
+                g_ws_ctx.data_handler(data->data_ptr, data->data_len);
+            } else {
+                ESP_LOGW(TAG, "未注册数据处理回调");
+            }
+        } else if(data->op_code == 1) // 文本数据
+        {
+            ESP_LOGI(TAG, "收到文本数据: %.*s", data->data_len, (char *)data->data_ptr);
+            // 处理JSON文本数据，当type = audio_end时，重置opus解码器  I (18398) WS_CLIENT: 收到文本数据: {"type": "audio_end", "timestamp": 1769880620, "message": "\u97f3\u9891\u6570\u636e\u63a5\u6536\u5b8c\u6210"}
+            // 解析JSON字符串
+            cJSON *json = cJSON_Parse((char *)data->data_ptr);
+            if (json)
+            {
+                // 提取type字段
+                cJSON *type = cJSON_GetObjectItemCaseSensitive(json, "type");
+                if (type && cJSON_IsString(type))
+                {
+                    if (strcmp(type->valuestring, "audio_start") == 0) {
+                        audio_start_event();
+                    } else if(strcmp(type->valuestring, "audio_end") == 0) {
+                        audio_end_event();
+                    }
+                }
+                cJSON_Delete(json);
+            }
+        } else {
+            // ESP_LOGW(TAG, "收到未知数据类型: op_code=%d, length=%d", data->op_code, data->data_len);
         }
         break;
 
@@ -520,8 +550,10 @@ esp_err_t ws_send_opus_task(void *pvParameters)
                 continue;
             }
 
+            // ESP_LOGE(TAG, "请求读取长度: req_len=%u",req_len);
+
             // 5. 从公共缓冲区读取指定长度的OPUS数据
-            esp_err_t read_ret = audio_get_opus_data(opus_data_buf, req_len);
+            esp_err_t read_ret = audio_get_opus_encode_data(opus_data_buf, req_len);
             if (read_ret != ESP_OK)
             {
                 ESP_LOGE(TAG, "读取OPUS数据失败: %s", esp_err_to_name(read_ret));
@@ -538,7 +570,7 @@ esp_err_t ws_send_opus_task(void *pvParameters)
             }
             else
             {
-                ESP_LOGD(TAG, "成功发送OPUS数据，长度=%u字节", req_len);
+                ESP_LOGD(TAG, "成功发送OPUS数据，长度=%u字节，数据内容第1字节=%02x, 数据内容第二字节=%02x", req_len, opus_data_buf[0], opus_data_buf[1]);
             }
 
             // 重置变量，避免残留数据
@@ -565,9 +597,6 @@ esp_err_t ws_send_opus_task(void *pvParameters)
  */
 esp_err_t ws_start(const char *uri)
 {
-    ws_recv_queue = xQueueCreate(20, sizeof(uint16_t));
-    ESP_RETURN_ON_FALSE(ws_recv_queue != NULL, ESP_FAIL, TAG, "Failed create ws recv queue");
-
     if (uri == NULL || strlen(uri) == 0)
     {
         ESP_LOGE(TAG, "无效的WS地址");
@@ -614,10 +643,11 @@ esp_err_t ws_start(const char *uri)
         ws_destroy_client();
         return ret;
     }
+    ws_register_data_handler(ws_recv_data_handler);
 
     ESP_LOGI(TAG, "WebSocket客户端启动成功，连接地址: %s", uri);
 
-    xTaskCreate(ws_send_opus_task, "ws_send_opus_task", 1024 * 4, NULL, 5, &ws_send_opus_task_handle);
+    xTaskCreatePinnedToCore(ws_send_opus_task, "ws_send_opus_task", 1024 * 4, NULL, 5, &ws_send_opus_task_handle, 1);
     return ESP_OK;
 }
 
@@ -740,7 +770,11 @@ bool ws_is_connected(void)
 void ws_register_data_handler(ws_data_handler_t handler)
 {
     g_ws_ctx.data_handler = handler;
-    ESP_LOGI(TAG, "数据接收回调已注册");
+    if(handler) {
+        ESP_LOGI(TAG, "数据接收回调已注册");
+    } else {
+        ESP_LOGW(TAG, "未注册数据处理回调");
+    }
 }
 
 /**

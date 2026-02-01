@@ -57,12 +57,21 @@ menu "Opus Codec Memory Allocation"
             Default 480 samples: 20ms frame @ 24kHz mono (24000 Hz * 0.02s = 480).
             Must match the maximum frame duration used by your Opus file.
 
-    config OPUS_AUDIO_SAMPLE_RATE
-        int "Opus Audio Sample Rate (Hz)"
+    config OPUS_AUDIO_ENCODER_SAMPLE_RATE
+        int "Opus Audio Encoder Sample Rate (Hz)"
         default 16000
         range 8000 48000
         help
-            Sample rate of Opus audio (directly maps to OPUS_AUDIO_SAMPLE_RATE macro).
+            Sample rate of Opus audio (directly maps to OPUS_AUDIO_ENCODER_SAMPLE_RATE macro).
+            Must be one of Opus-supported rates: 8000, 12000, 16000, 24000, 48000 Hz.
+            (Common choices: 24000 for fullband, 48000 for superwideband)
+
+    config OPUS_AUDIO_DECODER_SAMPLE_RATE
+        int "Opus Audio Decoder Sample Rate (Hz)"
+        default 24000
+        range 8000 48000
+        help
+            Sample rate of Opus audio (directly maps to OPUS_AUDIO_DECODER_SAMPLE_RATE macro).
             Must be one of Opus-supported rates: 8000, 12000, 16000, 24000, 48000 Hz.
             (Common choices: 24000 for fullband, 48000 for superwideband)
 

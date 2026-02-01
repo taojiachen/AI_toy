@@ -35,7 +35,8 @@ enum {
     DECODER_OK = 0,
     DECODER_HEADER_ONLY,
     DECODER_EOF,
-    DECODER_ERROR
+    DECODER_ERROR,
+    DECODER_NEED_MORE_DATA
 } typedef decoder_result_t;
 
 // 音频信息结构体
@@ -43,6 +44,26 @@ typedef struct {
     uint32_t sample_rate; // 采样率
     uint8_t channels;     // 声道数
 } audio_decoder_info_t;
+
+typedef enum {
+    AUDIO_DATA_TYPE_FILE = 0,
+    AUDIO_DATA_TYPE_BUFFER = 1,
+} audio_data_type_t;
+
+// 2. 内存缓冲区子结构体（单独命名，提升可读性）
+typedef struct {
+    uint8_t *buffer;    // 音频数据缓冲区首地址
+    size_t data_size;   // 缓冲区中有效音频数据的字节数
+} audio_buffer_t;
+
+// 3. 音频数据源主结构体（优化联合体命名，增加注释）
+typedef struct {
+    audio_data_type_t type;  // 数据源类型（决定联合体使用哪个成员）
+    union {
+        FILE *file;          // 当type=AUDIO_DATA_TYPE_FILE时使用
+        audio_buffer_t buf;  // 当type=AUDIO_DATA_TYPE_BUFFER时使用
+    } data;                  // 联合体命名为data，明确是数据源内容
+} data_source_t;
 
 // // 音频设备结构体（公共）
 // typedef struct {
@@ -57,7 +78,7 @@ struct audio_decoder{
     void * context;
     audio_decoder_info_t info;
     decoder_result_t (*init)(struct audio_decoder *decoder);
-    decoder_result_t (*decode_frame)(struct audio_decoder *decoder, FILE *file, int16_t *output, uint32_t *samples_decoded);
+    decoder_result_t (*decode_frame)(struct audio_decoder *decoder, data_source_t *source, int16_t *output, uint32_t *samples_decoded);
     void (*deinit)(struct audio_decoder *decoder);
 };
 
