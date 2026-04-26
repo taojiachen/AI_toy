@@ -563,13 +563,10 @@ esp_err_t ws_send_opus_task(void *pvParameters)
 
             // 6. 发送二进制OPUS数据（通过WebSocket）
             esp_err_t send_ret = ws_send_binary(opus_data_buf, req_len);
-            if (send_ret != ESP_OK)
-            {
+            if (send_ret != ESP_OK) {
                 ESP_LOGE(TAG, "发送OPUS数据失败: %s (长度=%u)",
                          esp_err_to_name(send_ret), req_len);
-            }
-            else
-            {
+            } else {
                 ESP_LOGD(TAG, "成功发送OPUS数据，长度=%u字节，数据内容第1字节=%02x, 数据内容第二字节=%02x", req_len, opus_data_buf[0], opus_data_buf[1]);
             }
 

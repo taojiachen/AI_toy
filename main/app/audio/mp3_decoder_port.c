@@ -1,7 +1,7 @@
 #ifdef Helix_mp3
 #include "audio.h"
 #include "audio_private.h"
-
+#include "esp_heap_caps.h"
 #include "mp3dec.h"
 
 typedef struct {

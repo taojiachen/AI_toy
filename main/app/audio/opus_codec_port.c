@@ -1,7 +1,7 @@
 #include "audio.h"
 #include "audio_private.h"
 #include "esp_log.h"
-
+#include "esp_heap_caps.h"
 #include "ogg.h"
 #include "opus.h"
 
@@ -26,7 +26,7 @@ typedef struct {
 static decoder_result_t decoder_init(audio_decoder_t *decoder)
 {
     // ESP_LOGI(TAG_OPUS, "[OPUS] Decoder intialization started");
-    opus_decoder_context_t *ctx = malloc(sizeof(opus_decoder_context_t));
+    opus_decoder_context_t *ctx = heap_caps_malloc(sizeof(opus_decoder_context_t), MALLOC_CAP_SPIRAM);
     if (!ctx) {
         ESP_LOGE(TAG_OPUS, "[OPUS] Failed to allocate decoder context memory");
         return DECODER_ERROR;
@@ -96,7 +96,7 @@ static decoder_result_t opus_decode_frame(audio_decoder_t *decoder, data_source_
             if(source->type == AUDIO_DATA_TYPE_FILE) {
                 bytes_read = fread(buffer, 1, CONFIG_OPUS_FILE_BUFF_SIZE, source->data.file);
             } else if(source->type == AUDIO_DATA_TYPE_BUFFER) {
-                bytes_read = mread(buffer, OPUS_BUFF_SIZE); // 每次读取480字节数据
+                bytes_read = mread(buffer, OPUS_BUFF_SIZE); // 每次读取960字节数据
                 // ESP_LOGI(TAG_OPUS, "[OPUS] Read %d bytes from file", (int)bytes_read);
             }
             
@@ -118,7 +118,7 @@ static decoder_result_t opus_decode_frame(audio_decoder_t *decoder, data_source_
             // LOG_DBG("[OPUS] Read %d bytes from file", (int)bytes_read);
             continue;
         } else {
-           // // ESP_LOGE(TAG_OPUS, "[OPUS] Page sync error: %d", page_ret);
+            // ESP_LOGE(TAG_OPUS, "[OPUS] Page sync error: %d", page_ret);
             return DECODER_ERROR;
         }
     }
@@ -137,9 +137,9 @@ decode_packet:
             
             if (ctx->current_packet.bytes >= 16) {
                 uint8_t *sr_bytes = ctx->current_packet.packet + 12;
-                decoder->info.sample_rate = (uint32_t)sr_bytes[0] | 
+                decoder->info.sample_rate = (uint32_t)sr_bytes[0] |
                                           (uint32_t)sr_bytes[1] << 8 |
-                                          (uint32_t)sr_bytes[2] << 16 | 
+                                          (uint32_t)sr_bytes[2] << 16 |
                                           (uint32_t)sr_bytes[3] << 24;
                 
                 // ESP_LOGI(TAG_OPUS, "[OPUS] Sample rate: %ld Hz", decoder->info.sample_rate);
@@ -237,7 +237,7 @@ static encoder_result_t encoder_init(audio_encoder_t *encoder)
     // ESP_LOGI(TAG_OPUS, "[OPUS] Encoder initialization started");
 
     // 分配编码上下文内存
-    opus_encoder_context_t *ctx = malloc(sizeof(opus_encoder_context_t));
+    opus_encoder_context_t *ctx = heap_caps_malloc(sizeof(opus_encoder_context_t), MALLOC_CAP_SPIRAM);
     if (!ctx) {
         ESP_LOGE(TAG_OPUS, "[OPUS] Encoder ctx malloc failed");
         return ENCODER_ERROR;

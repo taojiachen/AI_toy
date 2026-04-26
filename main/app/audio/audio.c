@@ -20,10 +20,10 @@
 #define MAX_MUSIC_NAME_LEN 64                    // 最大音乐名长度
 
 #define BUFFER_SIZE (1024 * 3) // 环形缓冲区大小（字节）
-#define WS_RECV_BUFFER_SIZE (480 * 40) // 环形缓冲区大小（字节）
+#define WS_RECV_BUFFER_SIZE (480 * 20) // 环形缓冲区大小（字节）
 
 // opus编码数据包大小
-#define OPUS_ENCODED_PACKET_SIZE 300 // 每个OPUS编码包最大字节数
+#define OPUS_ENCODED_PACKET_SIZE 200 // 每个OPUS编码包最大字节数
 
 // 帧头长度定义（需放在函数外，确保可见）
 #define FRAME_HEADER_SIZE 6                         // 帧头固定6字节
@@ -70,7 +70,7 @@ uint8_t audio_event = AUDIO_EVENT_START;
  */
 static audio_decoder_t *audio_decoder_register(void)
 {
-    decoder = malloc(sizeof(audio_decoder_t));
+    decoder = heap_caps_malloc(sizeof(audio_decoder_t), MALLOC_CAP_SPIRAM);
     if (!decoder)
     {
         ESP_LOGE(TAG, "Failed to allocate decoder memory");
@@ -219,9 +219,9 @@ esp_err_t audio_get_opus_encode_data(uint8_t *out_buf, uint16_t req_len)
     }
 
     // ========== 加锁：访问缓冲区前获取互斥锁 ==========
-    if (xSemaphoreTake(opus_buffer_mutex, pdMS_TO_TICKS(1)) != pdTRUE)
+    if (xSemaphoreTake(opus_buffer_mutex, pdMS_TO_TICKS(5)) != pdTRUE)
     {
-        ESP_LOGE(TAG, "Failed to take buffer mutex (reader)");
+        ESP_LOGE(TAG, "Failed to take buffer mutex (get_opus_encode_data)");
         return ESP_FAIL;
     }
 
@@ -254,7 +254,7 @@ esp_err_t audio_get_opus_encode_data(uint8_t *out_buf, uint16_t req_len)
  */
 static audio_encoder_t *audio_encoder_register(void)
 {
-    audio_encoder_t *encoder = malloc(sizeof(audio_encoder_t));
+    audio_encoder_t *encoder = heap_caps_malloc(sizeof(audio_encoder_t), MALLOC_CAP_SPIRAM);
     if (!encoder)
     {
         ESP_LOGE(TAG, "Failed to allocate encoder memory");
@@ -709,8 +709,8 @@ void audio_encoder_task(void *pvParameters)
 
                 // 更新写入位置
                 buffer_write_pos += total_packet_len;
-                // ESP_LOGI(TAG, "Store OPUS to buffer: %u bytes, write_pos=%u",
-                //          total_packet_len, buffer_write_pos);
+                ESP_LOGI(TAG, "Store OPUS to buffer: %u bytes, write_pos=%u",
+                         total_packet_len, buffer_write_pos);
 
                 // 发送encoded_bytes到ws_send_queue（非阻塞，避免任务卡死）
                 // ESP_LOGE(TAG, "total_packet_len: %u", total_packet_len);
