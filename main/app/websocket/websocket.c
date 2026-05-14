@@ -14,12 +14,14 @@
 #include "websocket.h"
 #include "audio.h"
 
+#include "esp_attr.h"
+
 // 日志标签
 static const char *TAG = "WS_CLIENT";
 
 // 内置默认配置参数（所有配置集中在这里）
 #define WS_DEFAULT_PING_INTERVAL 10          // PING间隔(秒)
-#define WS_DEFAULT_BUFFER_SIZE (8 * 1024)   // 缓冲区大小
+#define WS_DEFAULT_BUFFER_SIZE (8 * 1024)    // 缓冲区大小
 #define WS_DEFAULT_NETWORK_TIMEOUT 20000     // 网络超时(毫秒)
 #define WS_DEFAULT_MAX_RECONNECT 15          // 最大重连次数
 #define WS_DEFAULT_INIT_RECONNECT_DELAY 2000 // 初始重连延迟(毫秒)
@@ -74,6 +76,9 @@ TaskHandle_t ws_send_opus_task_handle = NULL;
 
 extern QueueHandle_t ws_send_queue;
 
+// 1. 初始化临时缓冲区（存储从opus_output_buffer读取的OPUS数据）
+EXT_RAM_BSS_ATTR uint8_t opus_data_buf[MAX_OPUS_FRAME_LEN] = {0};
+
 // 前向声明
 static void ws_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
 static void ws_reconnect_task(void *pvParameters);
@@ -127,7 +132,7 @@ static void ws_send_device_info(void)
     }
 
     time_t now = time(NULL);
-    char device_info[256];
+    char device_info[128];
     snprintf(device_info, sizeof(device_info),
              "{\"type\":\"device_info\",\"mac\":\"%s\",\"timestamp\":%lld}",
              mac_str, (long long)now);
@@ -191,7 +196,7 @@ static void ws_event_handler(void *handler_args, esp_event_base_t base,
         break;
 
     case WEBSOCKET_EVENT_DATA:
-        if(data->op_code == 2) // 二进制数据
+        if (data->op_code == 2) // 二进制数据
         {
             ESP_LOGI(TAG, "收到二进制数据，长度: %d", data->data_len);
 
@@ -200,10 +205,13 @@ static void ws_event_handler(void *handler_args, esp_event_base_t base,
             {
                 // ESP_LOGI(TAG, "调用回调函数");
                 g_ws_ctx.data_handler(data->data_ptr, data->data_len);
-            } else {
+            }
+            else
+            {
                 ESP_LOGW(TAG, "未注册数据处理回调");
             }
-        } else if(data->op_code == 1) // 文本数据
+        }
+        else if (data->op_code == 1) // 文本数据
         {
             ESP_LOGI(TAG, "收到文本数据: %.*s", data->data_len, (char *)data->data_ptr);
             // 处理JSON文本数据，当type = audio_end时，重置opus解码器  I (18398) WS_CLIENT: 收到文本数据: {"type": "audio_end", "timestamp": 1769880620, "message": "\u97f3\u9891\u6570\u636e\u63a5\u6536\u5b8c\u6210"}
@@ -215,15 +223,20 @@ static void ws_event_handler(void *handler_args, esp_event_base_t base,
                 cJSON *type = cJSON_GetObjectItemCaseSensitive(json, "type");
                 if (type && cJSON_IsString(type))
                 {
-                    if (strcmp(type->valuestring, "audio_start") == 0) {
+                    if (strcmp(type->valuestring, "audio_start") == 0)
+                    {
                         audio_start_event();
-                    } else if(strcmp(type->valuestring, "audio_end") == 0) {
+                    }
+                    else if (strcmp(type->valuestring, "audio_end") == 0)
+                    {
                         audio_end_event();
                     }
                 }
                 cJSON_Delete(json);
             }
-        } else {
+        }
+        else
+        {
             // ESP_LOGW(TAG, "收到未知数据类型: op_code=%d, length=%d", data->op_code, data->data_len);
         }
         break;
@@ -524,8 +537,6 @@ static esp_err_t ws_init_internal(const ws_config_t *config)
 
 esp_err_t ws_send_opus_task(void *pvParameters)
 {
-    // 1. 初始化临时缓冲区（存储从opus_output_buffer读取的OPUS数据）
-    uint8_t opus_data_buf[MAX_OPUS_FRAME_LEN] = {0};
     // 2. 队列接收的变量：存储需要读取的OPUS数据长度
     uint16_t req_len = 0;
     while (1)
@@ -563,10 +574,13 @@ esp_err_t ws_send_opus_task(void *pvParameters)
 
             // 6. 发送二进制OPUS数据（通过WebSocket）
             esp_err_t send_ret = ws_send_binary(opus_data_buf, req_len);
-            if (send_ret != ESP_OK) {
+            if (send_ret != ESP_OK)
+            {
                 ESP_LOGE(TAG, "发送OPUS数据失败: %s (长度=%u)",
                          esp_err_to_name(send_ret), req_len);
-            } else {
+            }
+            else
+            {
                 ESP_LOGD(TAG, "成功发送OPUS数据，长度=%u字节，数据内容第1字节=%02x, 数据内容第二字节=%02x", req_len, opus_data_buf[0], opus_data_buf[1]);
             }
 
@@ -767,9 +781,12 @@ bool ws_is_connected(void)
 void ws_register_data_handler(ws_data_handler_t handler)
 {
     g_ws_ctx.data_handler = handler;
-    if(handler) {
+    if (handler)
+    {
         ESP_LOGI(TAG, "数据接收回调已注册");
-    } else {
+    }
+    else
+    {
         ESP_LOGW(TAG, "未注册数据处理回调");
     }
 }

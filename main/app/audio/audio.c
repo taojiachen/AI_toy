@@ -10,6 +10,7 @@
 #include "app_sr.h"
 #include "esp_board_init.h"
 #include "websocket.h"
+#include "esp_attr.h"
 
 #include "opus.h"
 
@@ -30,11 +31,11 @@
 #define OPUS_DATA_MAX_LEN (OPUS_ENCODED_PACKET_SIZE - FRAME_HEADER_SIZE) // 预留帧头后，OPUS数据最大长度
 
 // 公共缓冲区：存储OPUS编码后的字节数据
-static uint8_t opus_output_buffer[BUFFER_SIZE] = {0};
+EXT_RAM_BSS_ATTR static uint8_t opus_output_buffer[BUFFER_SIZE] = {0};
 static size_t buffer_write_pos = 0; // 环形缓冲区写入位置（按字节计）
 
 // 公共缓冲区：存储websocket接收到的OPUS字节数据
-static uint8_t ws_recv_opus_buffer[WS_RECV_BUFFER_SIZE] = {0};
+EXT_RAM_BSS_ATTR static uint8_t ws_recv_opus_buffer[WS_RECV_BUFFER_SIZE] = {0};
 static size_t ws_recv_buffer_write_pos = 0; // 环形缓冲区写入位置（按字节计）
 static const char *TAG = "Audio";
 
@@ -506,6 +507,7 @@ size_t mread(char *buf, uint16_t len) {
 }
 
 void audio_start_event() {
+    ws_recv_buffer_write_pos = 0; // 重置接收缓冲区写入位置
     audio_event = AUDIO_EVENT_START;
 }
 
