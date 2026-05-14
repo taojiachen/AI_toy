@@ -25,6 +25,7 @@
 #include "app_RFID.h"
 #include "event.h"
 #include "app_task_list.h"
+#include "app_camera.h"
 
 static const char *TAG = "main";
 
@@ -33,28 +34,29 @@ void app_main(void)
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
-    health_init();
-    esp_board_init();
-    spi_bus_init();
-    RFID_start();
-    wifi_init();
-    app_sntp_init();
-    app_aliyun_mqtt_init();
-    ESP_ERROR_CHECK(app_sr_start());
-    ESP_ERROR_CHECK(audio_init());
-    ws_start("wss://10.160.161.44:8765");
-    update_value();
-    Update_Nearest_Task();
-    event_start();
+    // health_init();
+    // esp_board_init();
+    // spi_bus_init();
+    // RFID_start();
+    // wifi_init();
+    // app_sntp_init();
+    // app_aliyun_mqtt_init();
+    // ESP_ERROR_CHECK(app_sr_start());
+    // ESP_ERROR_CHECK(audio_init());
+    // ws_start("wss://10.225.61.44:8765");
+    // update_value();
+    // Update_Nearest_Task();
+    // event_start();
     // clear_all_tasks();
 
     vTaskDelay(5000 / portTICK_PERIOD_MS);
 
     while (1)
     {
+        take_picture();
         vTaskDelay(15000 / portTICK_PERIOD_MS);
-        print_all_tasks();
-        update_value();
+        // print_all_tasks();
+        // update_value();
         ESP_LOGI(TAG, "Free memory after start: %d bytes", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
         ESP_LOGI(TAG, "Free PSRAM heap: %d bytes", heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
     }
