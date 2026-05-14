@@ -27,7 +27,54 @@
 #include "app_task_list.h"
 #include "app_camera.h"
 
+#include "img_converters.h" // 提供 frame2jpg
+#include <mbedtls/base64.h> // Base64 编码
+
 static const char *TAG = "main";
+
+/**
+ * 将图片帧缓冲进行 Base64 编码并分块打印到串口
+ * @param fb 摄像头帧缓冲指针（调用者需确保非空）
+ */
+static void print_frame_as_base64(camera_fb_t *fb)
+{
+    if (!fb || !fb->buf)
+    {
+        ESP_LOGE(TAG, "Invalid frame buffer");
+        return;
+    }
+
+    size_t base64_len = 4 * ((fb->len + 2) / 3);
+    size_t dlen = base64_len + 16;
+    char *base64_buf = malloc(dlen + 1);
+    if (!base64_buf)
+    {
+        ESP_LOGE(TAG, "Failed to allocate base64 buffer");
+        return;
+    }
+
+    size_t out_len = 0;
+    int ret = mbedtls_base64_encode((unsigned char *)base64_buf, dlen,
+                                    &out_len, fb->buf, fb->len);
+    if (ret != 0)
+    {
+        ESP_LOGE(TAG, "Base64 encode failed, ret=%d", ret);
+        free(base64_buf);
+        return;
+    }
+    base64_buf[out_len] = '\0';
+
+    const size_t CHUNK_SIZE = 512;
+    for (size_t i = 0; i < out_len; i += CHUNK_SIZE)
+    {
+        size_t len = (i + CHUNK_SIZE < out_len) ? CHUNK_SIZE : (out_len - i);
+        printf("%.*s", len, base64_buf + i);
+        vTaskDelay(1); // 关键：喂看门狗并让出 CPU
+    }
+    printf("\n");
+
+    free(base64_buf);
+}
 
 void app_main(void)
 {
@@ -36,6 +83,7 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     // health_init();
     // esp_board_init();
+    init_camera();
     // spi_bus_init();
     // RFID_start();
     // wifi_init();
@@ -53,11 +101,23 @@ void app_main(void)
 
     while (1)
     {
-        take_picture();
+        camera_fb_t *pic = take_picture();
+        if (pic)
+        {
+            // 将图片转为 Base64 并打印
+            print_jpeg_as_base64(pic);
+
+            // ！关键！使用完后必须归还帧缓冲，否则会导致内存耗尽崩溃
+            esp_camera_fb_return(pic);
+        }
+        else
+        {
+            ESP_LOGE(TAG, "Failed to take picture");
+        }
         vTaskDelay(15000 / portTICK_PERIOD_MS);
         // print_all_tasks();
         // update_value();
-        ESP_LOGI(TAG, "Free memory after start: %d bytes", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
-        ESP_LOGI(TAG, "Free PSRAM heap: %d bytes", heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+        // ESP_LOGI(TAG, "Free memory after start: %d bytes", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+        // ESP_LOGI(TAG, "Free PSRAM heap: %d bytes", heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
     }
 }

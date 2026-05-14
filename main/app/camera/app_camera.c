@@ -57,6 +57,8 @@
 
 #include "camera_pinout.h"
 #include "app_camera.h"
+#include "img_converters.h" // 提供 frame2jpg
+#include <mbedtls/base64.h> // Base64 编码
 
 static const char *TAG = "example:take_picture";
 
@@ -81,7 +83,7 @@ static camera_config_t camera_config = {
     .pin_pclk = CAM_PIN_PCLK,
 
     // XCLK 20MHz or 10MHz for OV2640 double FPS (Experimental)
-    .xclk_freq_hz = 20000000,
+    .xclk_freq_hz = 10000000,
     .ledc_timer = LEDC_TIMER_0,
     .ledc_channel = LEDC_CHANNEL_0,
 
@@ -94,7 +96,7 @@ static camera_config_t camera_config = {
     .grab_mode = CAMERA_GRAB_WHEN_EMPTY,
 };
 
-static esp_err_t init_camera(void)
+esp_err_t init_camera(void)
 {
     // initialize the camera
     esp_err_t err = esp_camera_init(&camera_config);
@@ -140,17 +142,75 @@ static void maybe_init_autofocus(void)
 #endif
 #endif
 
+/**
+ * 将 RGB565 帧转为 JPEG，再 Base64 编码并分块打印到串口
+ */
+void print_jpeg_as_base64(camera_fb_t *fb)
+{
+    if (!fb || fb->format != PIXFORMAT_RGB565)
+    {
+        ESP_LOGE(TAG, "Invalid frame or not RGB565");
+        return;
+    }
+
+    // 1. RGB565 -> JPEG
+    uint8_t *jpg_buf = NULL;
+    size_t jpg_len = 0;
+    if (!frame2jpg(fb, 80, &jpg_buf, &jpg_len))
+    {
+        ESP_LOGE(TAG, "JPEG compression failed");
+        return;
+    }
+    ESP_LOGI(TAG, "JPEG size: %zu bytes", jpg_len);
+
+    // 2. JPEG -> Base64
+    size_t b64_len = (jpg_len + 2) / 3 * 4; // 编码后字符数
+    uint8_t *b64_buf = malloc(b64_len + 1); // +1 用于字符串终止符
+    if (!b64_buf)
+    {
+        ESP_LOGE(TAG, "Out of memory for Base64 buffer");
+        free(jpg_buf);
+        return;
+    }
+
+    size_t olen;
+    // 注意：dlen 应传入缓冲区总大小（至少 b64_len+1），才能容纳编码结果和 '\0'
+    int ret = mbedtls_base64_encode(b64_buf, b64_len + 1, &olen, jpg_buf, jpg_len);
+    if (ret != 0)
+    {
+        ESP_LOGE(TAG, "Base64 encode failed, ret=%d", ret);
+        free(jpg_buf);
+        free(b64_buf);
+        return;
+    }
+    b64_buf[olen] = '\0'; // 手动添加字符串结束符
+
+    // 3. 分块打印
+    ESP_LOGI(TAG, "=== START JPEG BASE64 ===");
+    const char *p = (const char *)b64_buf;
+    while (*p)
+    {
+        int chunk = (strlen(p) > 256) ? 256 : strlen(p);
+        printf("%.*s", chunk, p);
+        p += chunk;
+    }
+    ESP_LOGI(TAG, "\n=== END JPEG BASE64 ===");
+
+    free(jpg_buf);
+    free(b64_buf);
+}
+
 camera_fb_t *take_picture(void)
 {
-    if (ESP_OK != init_camera())
-    {
-        return NULL;
-    }
     ESP_LOGI(TAG, "Taking picture...");
     camera_fb_t *pic = esp_camera_fb_get();
-
-    // use pic->buf to access the image
-    ESP_LOGI(TAG, "Picture taken! Its size was: %zu bytes", pic->len);
-    esp_camera_fb_return(pic);
+    if (pic)
+    {
+        ESP_LOGI(TAG, "Picture taken! RGB565 size: %zu bytes", pic->len);
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Failed to get picture");
+    }
     return pic;
 }
