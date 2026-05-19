@@ -58,9 +58,12 @@
 #include "camera_pinout.h"
 #include "app_camera.h"
 #include "img_converters.h" // 提供 frame2jpg
-#include <mbedtls/base64.h> // Base64 编码
 
-static const char *TAG = "example:take_picture";
+#include "websocket.h" // 提供 ws_send_jpeg_binary
+#include "esp_board_init.h"
+#include "app_sr.h" // 提供 stop_audio_feed 和 start_audio_feed
+
+static const char *TAG = "take_picture";
 
 #if ESP_CAMERA_SUPPORTED
 static camera_config_t camera_config = {
@@ -90,7 +93,7 @@ static camera_config_t camera_config = {
     .pixel_format = PIXFORMAT_RGB565, // YUV422,GRAYSCALE,RGB565,JPEG
     .frame_size = FRAMESIZE_QVGA,     // QQVGA-UXGA, For ESP32, do not use sizes above QVGA when not JPEG. The performance of the ESP32-S series has improved a lot, but JPEG mode always gives better frame rates.
 
-    .jpeg_quality = 12, // 0-63, for OV series camera sensors, lower number means higher quality
+    .jpeg_quality = 1, // 0-63, for OV series camera sensors, lower number means higher quality
     .fb_count = 1,      // When jpeg mode is used, if fb_count more than one, the driver will work in continuous mode.
     .fb_location = CAMERA_FB_IN_PSRAM,
     .grab_mode = CAMERA_GRAB_WHEN_EMPTY,
@@ -106,6 +109,17 @@ esp_err_t init_camera(void)
         return err;
     }
 
+    return ESP_OK;
+}
+
+esp_err_t deinit_camera(void)
+{
+    esp_err_t err = esp_camera_deinit();
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Camera Deinit Failed");
+        return err;
+    }
     return ESP_OK;
 }
 
@@ -143,65 +157,42 @@ static void maybe_init_autofocus(void)
 #endif
 
 /**
- * 将 RGB565 帧转为 JPEG，再 Base64 编码并分块打印到串口
+ * 将 RGB565 帧转换为 JPEG 数据（动态分配内存）
+ *
+ * @param fb        摄像头帧（必须是 PIXFORMAT_RGB565）
+ * @param quality   JPEG 质量 (0-100，推荐 80)
+ * @param out_jpg   输出指针（函数内部分配，调用者需 free）
+ * @param out_len   输出 JPEG 数据长度
+ * @return          true 成功，false 失败
  */
-void print_jpeg_as_base64(camera_fb_t *fb)
+bool convert_rgb565_to_jpeg(camera_fb_t *fb, uint8_t quality, uint8_t **out_jpg, size_t *out_len)
 {
     if (!fb || fb->format != PIXFORMAT_RGB565)
     {
-        ESP_LOGE(TAG, "Invalid frame or not RGB565");
-        return;
+        ESP_LOGE("JPEG_CONV", "Invalid input: not RGB565");
+        return false;
     }
-
-    // 1. RGB565 -> JPEG
-    uint8_t *jpg_buf = NULL;
-    size_t jpg_len = 0;
-    if (!frame2jpg(fb, 80, &jpg_buf, &jpg_len))
+    if (!out_jpg || !out_len)
     {
-        ESP_LOGE(TAG, "JPEG compression failed");
-        return;
+        return false;
     }
-    ESP_LOGI(TAG, "JPEG size: %zu bytes", jpg_len);
 
-    // 2. JPEG -> Base64
-    size_t b64_len = (jpg_len + 2) / 3 * 4; // 编码后字符数
-    uint8_t *b64_buf = malloc(b64_len + 1); // +1 用于字符串终止符
-    if (!b64_buf)
+    // frame2jpg 会分配内存，调用者负责释放
+    bool success = frame2jpg(fb, quality, out_jpg, out_len);
+    if (!success)
     {
-        ESP_LOGE(TAG, "Out of memory for Base64 buffer");
-        free(jpg_buf);
-        return;
+        ESP_LOGE("JPEG_CONV", "JPEG compression failed");
     }
-
-    size_t olen;
-    // 注意：dlen 应传入缓冲区总大小（至少 b64_len+1），才能容纳编码结果和 '\0'
-    int ret = mbedtls_base64_encode(b64_buf, b64_len + 1, &olen, jpg_buf, jpg_len);
-    if (ret != 0)
+    else
     {
-        ESP_LOGE(TAG, "Base64 encode failed, ret=%d", ret);
-        free(jpg_buf);
-        free(b64_buf);
-        return;
+        ESP_LOGI("JPEG_CONV", "Converted to JPEG, size: %zu bytes", *out_len);
     }
-    b64_buf[olen] = '\0'; // 手动添加字符串结束符
-
-    // 3. 分块打印
-    ESP_LOGI(TAG, "=== START JPEG BASE64 ===");
-    const char *p = (const char *)b64_buf;
-    while (*p)
-    {
-        int chunk = (strlen(p) > 256) ? 256 : strlen(p);
-        printf("%.*s", chunk, p);
-        p += chunk;
-    }
-    ESP_LOGI(TAG, "\n=== END JPEG BASE64 ===");
-
-    free(jpg_buf);
-    free(b64_buf);
+    return success;
 }
 
 camera_fb_t *take_picture(void)
 {
+    // init_camera();
     ESP_LOGI(TAG, "Taking picture...");
     camera_fb_t *pic = esp_camera_fb_get();
     if (pic)
@@ -212,5 +203,43 @@ camera_fb_t *take_picture(void)
     {
         ESP_LOGE(TAG, "Failed to get picture");
     }
+    // deinit_camera();
     return pic;
+}
+
+void send_camera_image(void)
+{
+    camera_fb_t *fb = take_picture();
+    // 直接发送原始 JPEG（如果摄像头输出已经是 JPEG）
+    if (fb->format == PIXFORMAT_JPEG)
+    {
+        if (ws_is_connected())
+        {
+            ws_send_jpeg_binary(fb->buf, fb->len);
+        }
+    }
+    // 如果是 RGB565，先压缩为 JPEG
+    else if (fb->format == PIXFORMAT_RGB565)
+    {
+        uint8_t *jpg_buf = NULL;
+        size_t jpg_len = 0;
+        if (frame2jpg(fb, 80, &jpg_buf, &jpg_len))
+        {
+            if (ws_is_connected())
+            {
+                ws_send_jpeg_binary(jpg_buf, jpg_len);
+            }
+            free(jpg_buf);
+        }
+        else
+        {
+            ESP_LOGE(TAG, "JPEG压缩失败");
+        }
+    }
+    else
+    {
+        ESP_LOGW(TAG, "不支持的格式: %d", fb->format);
+    }
+
+    esp_camera_fb_return(fb);
 }

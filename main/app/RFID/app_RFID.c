@@ -4,16 +4,16 @@
 #include <time.h>
 #include <stdlib.h>
 #include "rc522.h"
+#include "driver/rc522_i2c.h"
 #include "driver/rc522_spi.h"
-#include "picc/rc522_mifare.h"
+#include "rc522_picc.h"
 
 static const char *TAG = "rc522-read-write-example";
 
-#define RC522_SPI_BUS_GPIO_MISO (19)
-#define RC522_SPI_BUS_GPIO_MOSI (17)
-#define RC522_SPI_BUS_GPIO_SCLK (18)
-#define RC522_SPI_SCANNER_GPIO_SDA (20)
-#define RC522_SCANNER_GPIO_RST (8) // soft-reset
+#define RC522_I2C_ADDRESS      (0x28)
+#define RC522_I2C_GPIO_SDA     (48)
+#define RC522_I2C_GPIO_SCL     (47)
+#define RC522_SCANNER_GPIO_RST (-1) // soft-reset
 
 extern struct Nearest_Task
 {
@@ -25,15 +25,17 @@ extern struct Nearest_Task
 
 extern int flag;
 
-static rc522_spi_config_t driver_config = {
-    .host_id = SPI3_HOST,
-    .bus_config = &(spi_bus_config_t){
-        .miso_io_num = RC522_SPI_BUS_GPIO_MISO,
-        .mosi_io_num = RC522_SPI_BUS_GPIO_MOSI,
-        .sclk_io_num = RC522_SPI_BUS_GPIO_SCLK,
-    },
-    .dev_config = {
-        .spics_io_num = RC522_SPI_SCANNER_GPIO_SDA,
+static rc522_i2c_config_t driver_config = {
+    .port = I2C_NUM_0,
+    .device_address = RC522_I2C_ADDRESS,
+    .rw_timeout_ms = 1000,
+    .config = {
+        .mode = I2C_MODE_MASTER,
+        .sda_io_num = RC522_I2C_GPIO_SDA,
+        .scl_io_num = RC522_I2C_GPIO_SCL,
+        .sda_pullup_en = GPIO_PULLUP_ENABLE,
+        .scl_pullup_en = GPIO_PULLUP_ENABLE,
+        .master.clk_speed = 100000,
     },
     .rst_io_num = RC522_SCANNER_GPIO_RST,
 };
@@ -88,6 +90,17 @@ static void on_picc_state_changed(void *arg, esp_event_base_t base, int32_t even
 void spi_bus_init()
 {
     rc522_spi_create(&driver_config, &driver);
+    rc522_driver_install(driver);
+    rc522_config_t scanner_config = {
+        .driver = driver,
+    };
+
+    rc522_create(&scanner_config, &scanner);
+}
+
+void i2c_bus_init()
+{
+    rc522_i2c_create(&driver_config, &driver);
     rc522_driver_install(driver);
     rc522_config_t scanner_config = {
         .driver = driver,

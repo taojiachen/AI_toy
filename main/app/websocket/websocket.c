@@ -595,7 +595,7 @@ esp_err_t ws_send_opus_task(void *pvParameters)
         }
 
         // 短延迟：降低任务调度频率，避免占用过多CPU
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(20));
     }
 
     // 循环不会执行到此处，仅满足函数返回值要求
@@ -759,6 +759,34 @@ esp_err_t ws_send_binary(const void *data, size_t len)
         return ESP_FAIL;
     }
 
+    return ESP_OK;
+}
+
+
+/**
+ * @brief 发送JPEG数据
+ */
+esp_err_t ws_send_jpeg_binary(uint8_t *jpg_data, size_t jpg_len)
+{
+    if (!g_ws_ctx.initialized || !g_ws_ctx.client) {
+        ESP_LOGE(TAG, "WebSocket未初始化");
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (!jpg_data || jpg_len == 0) {
+        ESP_LOGE(TAG, "无效JPEG数据");
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!esp_websocket_client_is_connected(g_ws_ctx.client)) {
+        ESP_LOGE(TAG, "WebSocket未连接");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    int sent = esp_websocket_client_send_bin(g_ws_ctx.client, (const char *)jpg_data, (int)jpg_len, portMAX_DELAY);
+    if (sent <= 0) {
+        ESP_LOGE(TAG, "发送JPEG二进制失败: %d", sent);
+        return ESP_FAIL;
+    }
+    ESP_LOGI(TAG, "JPEG二进制发送成功，大小: %zu 字节", jpg_len);
     return ESP_OK;
 }
 

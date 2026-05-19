@@ -563,7 +563,7 @@ void audio_decoder_task(void *pvParameters)
                         decode_buffer,
                         samples_decoded * 2 // 采样点转字节数（int16_t占2字节）
                     );
-                    ESP_LOGI(TAG, "Decoded and played %lu bytes", samples_decoded * 2);
+                    // ESP_LOGI(TAG, "Decoded and played %lu bytes", samples_decoded * 2);
                     if (i2s_ret != ESP_OK)
                     {
                         ESP_LOGE(TAG, "I2S write failed: %d", i2s_ret);
@@ -589,7 +589,7 @@ void audio_decoder_task(void *pvParameters)
                 break;
         }
 
-        vTaskDelay(pdMS_TO_TICKS(1));
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
 
@@ -711,8 +711,8 @@ void audio_encoder_task(void *pvParameters)
 
                 // 更新写入位置
                 buffer_write_pos += total_packet_len;
-                ESP_LOGI(TAG, "Store OPUS to buffer: %u bytes, write_pos=%u",
-                         total_packet_len, buffer_write_pos);
+                // ESP_LOGI(TAG, "Store OPUS to buffer: %u bytes, write_pos=%u",
+                //          total_packet_len, buffer_write_pos);
 
                 // 发送encoded_bytes到ws_send_queue（非阻塞，避免任务卡死）
                 // ESP_LOGE(TAG, "total_packet_len: %u", total_packet_len);
@@ -735,7 +735,7 @@ void audio_encoder_task(void *pvParameters)
                 ESP_LOGE(TAG, "OPUS encode failed: %d", ret);
             }
         }
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(20));
     }
 }
 
@@ -767,7 +767,7 @@ esp_err_t audio_init()
     BaseType_t ret_val = xTaskCreatePinnedToCore(
         audio_encoder_task,
         "audio_encoder_task",
-        18 * 1024,
+        16 * 1024,
         NULL,
         4,
         &audio_encoder_task_handle,
@@ -803,7 +803,7 @@ esp_err_t audio_init()
     ret_val = xTaskCreatePinnedToCore(
         audio_decoder_task,
         "audio_decoder_task",
-        16 * 1024,
+        8 * 1024,
         NULL,
         5,
         &audio_decoder_task_handle,

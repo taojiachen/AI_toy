@@ -19,7 +19,7 @@ static const char *TAG = "bsp_board";
 i2s_chan_handle_t rx_handle;
 i2s_chan_handle_t tx_handle;
 
-void init_i2s_read(void)
+void init_i2s_mic(void)
 {
     // 配置I2S输入通道
     i2s_chan_config_t rx_chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
@@ -59,7 +59,7 @@ void init_i2s_read(void)
     ESP_ERROR_CHECK(i2s_channel_enable(rx_handle));
 }
 
-i2s_chan_handle_t init_i2s_write(void)
+i2s_chan_handle_t init_i2s_speaker(void)
 {
     // 配置I2S输出通道
     i2s_chan_config_t tx_chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_1, I2S_ROLE_MASTER);
@@ -168,8 +168,8 @@ esp_err_t bsp_spiffs_unmount(void)
 
 esp_err_t bsp_board_init()
 {
-    init_i2s_read();
-    init_i2s_write();
+    init_i2s_mic();
+    init_i2s_speaker();
     bsp_spiffs_mount();
     return ESP_OK;
 }

@@ -100,4 +100,9 @@ void ws_register_state_handler(ws_state_handler_t handler);
  */
 void ws_deinit(void);
 
+/**
+ * @brief 发送jpeg数据
+ */
+esp_err_t ws_send_jpeg_binary(uint8_t *jpg_data, size_t jpg_len);
+
 #endif // WEBSOCKET_H

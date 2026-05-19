@@ -2,4 +2,5 @@
 
 camera_fb_t *take_picture(void);
 esp_err_t init_camera(void);
-void print_jpeg_as_base64(camera_fb_t *fb);
+esp_err_t deinit_camera(void);
+void send_camera_image(void);
