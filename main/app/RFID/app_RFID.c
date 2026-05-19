@@ -10,9 +10,9 @@
 
 static const char *TAG = "rc522-read-write-example";
 
-#define RC522_I2C_ADDRESS      (0x28)
-#define RC522_I2C_GPIO_SDA     (48)
-#define RC522_I2C_GPIO_SCL     (47)
+#define RC522_I2C_ADDRESS      (0x24)
+#define RC522_I2C_GPIO_SDA     (20)
+#define RC522_I2C_GPIO_SCL     (21)
 #define RC522_SCANNER_GPIO_RST (-1) // soft-reset
 
 extern struct Nearest_Task

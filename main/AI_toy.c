@@ -81,26 +81,24 @@ void app_main(void)
     health_init();
     esp_board_init();
     init_camera();
-    i2c_bus_init();
-    RFID_start();
+    // i2c_bus_init();
+    // RFID_start();
     wifi_init();
     app_sntp_init();
     app_aliyun_mqtt_init();
     ESP_ERROR_CHECK(app_sr_start());
     ESP_ERROR_CHECK(audio_init());
     ws_start("wss://10.167.90.44:8765");
-    // update_value();
-    // Update_Nearest_Task();
+    update_value();
+    Update_Nearest_Task();
     event_start();
-    // clear_all_tasks();
-
+    clear_all_tasks();
     vTaskDelay(5000 / portTICK_PERIOD_MS);
-    
 
     while (1)
     {
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
-        // send_camera_image();
+        vTaskDelay(500 / portTICK_PERIOD_MS);
+        send_camera_image();
         // print_all_tasks();
         // update_value();
         ESP_LOGI(TAG, "Free memory after start: %d bytes", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
