@@ -34,20 +34,20 @@ void app_main(void)
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
-    health_init();
+    // health_init();
     esp_board_init();
     init_camera();
     RFID_start();
     wifi_init();
-    app_sntp_init();
-    app_aliyun_mqtt_init();
+    // app_sntp_init();
+    // app_aliyun_mqtt_init();
     ESP_ERROR_CHECK(app_sr_start());
     ESP_ERROR_CHECK(audio_init());
     ws_start("wss://10.167.90.44:8765");
-    update_value();
-    Update_Nearest_Task();
+    // update_value();
+    // Update_Nearest_Task();
     event_start();
-    clear_all_tasks();
+    // clear_all_tasks();
     vTaskDelay(5000 / portTICK_PERIOD_MS);
 
     while (1)

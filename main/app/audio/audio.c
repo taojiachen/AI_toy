@@ -20,7 +20,7 @@
 #define DEFAULT_MUSIC "turn_on"                  // 默认播放文件（无配置时）
 #define MAX_MUSIC_NAME_LEN 64                    // 最大音乐名长度
 
-#define BUFFER_SIZE (1024 * 3) // 环形缓冲区大小（字节）
+#define BUFFER_SIZE (1024 * 2) // 环形缓冲区大小（字节）
 #define WS_RECV_BUFFER_SIZE (480 * 20) // 环形缓冲区大小（字节）
 
 // opus编码数据包大小

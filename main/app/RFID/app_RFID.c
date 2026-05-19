@@ -134,6 +134,7 @@ void rfid_task(void *pvParameters)
                 card_present = true;   // 标记卡片存在，等待离开
             }
             // 如果卡片仍存在，不重复执行任何操作
+            vTaskDelay(pdMS_TO_TICKS(200));
         }
         else
         {
@@ -144,7 +145,7 @@ void rfid_task(void *pvParameters)
                 card_present = false;
             }
             // 短暂延时，避免空转
-            vTaskDelay(100 / portTICK_PERIOD_MS);
+            vTaskDelay(pdMS_TO_TICKS(200));
         }
     }
 
