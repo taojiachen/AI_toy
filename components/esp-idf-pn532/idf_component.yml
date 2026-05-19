@@ -1,0 +1,16 @@
+dependencies:
+  idf: '>=5.2'
+description: Component for communication with NFC cards using a PN532 module
+files:
+  exclude:
+  - '**/.idea/**/*'
+  - '**/cmake-build-*/**/*'
+license: MIT
+repository: https://github.com/garag/esp-idf-pn532.git
+tags:
+- nfc
+- rfid
+- mifare
+- ntag
+url: https://github.com/garag/esp-idf-pn532
+version: 0.2.1

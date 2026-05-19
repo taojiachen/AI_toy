@@ -1,0 +1,7 @@
+/dist
+**/build/
+sdkconfig.old
+dependencies.lock
+.idea
+cmake-build-*
+examples/ntag_read/sdkconfig*
