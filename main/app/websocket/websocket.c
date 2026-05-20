@@ -13,6 +13,7 @@
 
 #include "websocket.h"
 #include "audio.h"
+#include "state_machine.h"
 
 #include "esp_attr.h"
 
@@ -20,7 +21,7 @@
 static const char *TAG = "WS_CLIENT";
 
 // 内置默认配置参数（所有配置集中在这里）
-#define WS_DEFAULT_PING_INTERVAL 10          // PING间隔(秒)
+#define WS_DEFAULT_PING_INTERVAL 0           // PING间隔(秒)
 #define WS_DEFAULT_BUFFER_SIZE (8 * 1024)    // 缓冲区大小
 #define WS_DEFAULT_NETWORK_TIMEOUT 20000     // 网络超时(毫秒)
 #define WS_DEFAULT_MAX_RECONNECT 15          // 最大重连次数
@@ -223,7 +224,23 @@ static void ws_event_handler(void *handler_args, esp_event_base_t base,
                 cJSON *type = cJSON_GetObjectItemCaseSensitive(json, "type");
                 if (type && cJSON_IsString(type))
                 {
-                    if (strcmp(type->valuestring, "audio_start") == 0)
+                    if (strcmp(type->valuestring, "milestones_anwser_1") == 0)
+                    {
+                        cJSON *status = cJSON_GetObjectItemCaseSensitive(json, "status");
+                        if (status && cJSON_IsString(status) && strcmp(status->valuestring, "started") == 0)
+                        {
+                            state_machine_send_event(EVENT_WS_MILESTONE_STARTED);
+                        }
+                    }
+                    else if (strcmp(type->valuestring, "anwser_question_photo") == 0)
+                    {
+                        state_machine_send_event(EVENT_WS_ANSWER_PHOTO);
+                    }
+                    else if (strcmp(type->valuestring, "milestone_complete") == 0)
+                    {
+                        state_machine_send_event(EVENT_WS_MILESTONE_COMPLETE);
+                    }
+                    else if (strcmp(type->valuestring, "audio_start") == 0)
                     {
                         audio_start_event();
                     }
@@ -762,27 +779,30 @@ esp_err_t ws_send_binary(const void *data, size_t len)
     return ESP_OK;
 }
 
-
 /**
  * @brief 发送JPEG数据
  */
 esp_err_t ws_send_jpeg_binary(uint8_t *jpg_data, size_t jpg_len)
 {
-    if (!g_ws_ctx.initialized || !g_ws_ctx.client) {
+    if (!g_ws_ctx.initialized || !g_ws_ctx.client)
+    {
         ESP_LOGE(TAG, "WebSocket未初始化");
         return ESP_ERR_INVALID_STATE;
     }
-    if (!jpg_data || jpg_len == 0) {
+    if (!jpg_data || jpg_len == 0)
+    {
         ESP_LOGE(TAG, "无效JPEG数据");
         return ESP_ERR_INVALID_ARG;
     }
-    if (!esp_websocket_client_is_connected(g_ws_ctx.client)) {
+    if (!esp_websocket_client_is_connected(g_ws_ctx.client))
+    {
         ESP_LOGE(TAG, "WebSocket未连接");
         return ESP_ERR_INVALID_STATE;
     }
 
     int sent = esp_websocket_client_send_bin(g_ws_ctx.client, (const char *)jpg_data, (int)jpg_len, portMAX_DELAY);
-    if (sent <= 0) {
+    if (sent <= 0)
+    {
         ESP_LOGE(TAG, "发送JPEG二进制失败: %d", sent);
         return ESP_FAIL;
     }

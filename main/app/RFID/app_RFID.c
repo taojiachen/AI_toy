@@ -12,6 +12,9 @@
 #include "pn532_driver_spi.h"
 #include "pn532.h"
 
+#include "websocket.h"
+#include "state_machine.h"
+
 // ==================== 接口模式选择（仅选一个为 1） ====================
 #define PN532_MODE_I2C   0
 #define PN532_MODE_HSU   1
@@ -82,6 +85,13 @@ void rfid_task(void *pvParameters)
                 ESP_LOGI(TAG, "UID Value:");
                 ESP_LOG_BUFFER_HEX_LEVEL(TAG, uid, uid_length, ESP_LOG_INFO);
 
+                state_machine_send_event(EVENT_RFID_CARD_DETECTED);
+
+                // ws_send_text("{\"type\":\"milestones_anwser_1\"}", strlen("{\"type\":\"milestones_anwser_1\"}"));
+                // vTaskDelay(pdMS_TO_TICKS(5000));
+                // ws_send_text("{\"type\":\"anwser_question_1\"}", strlen("{\"type\":\"anwser_question_1\"}"));
+                // vTaskDelay(pdMS_TO_TICKS(10000));
+                // ws_send_text("{\"type\":\"end_anwser_question_1\"}", strlen("{\"type\":\"end_anwser_question_1\"}"));
                 // ---------- 读取 NTAG 数据（仅执行一次） ----------
                 err = pn532_in_list_passive_target(g_pn532_io);
                 if (err != ESP_OK) {

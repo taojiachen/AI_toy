@@ -26,6 +26,8 @@
 #include "event.h"
 #include "app_task_list.h"
 #include "app_camera.h"
+#include "app_key.h"
+#include "state_machine.h"
 
 static const char *TAG = "main";
 
@@ -36,8 +38,10 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     // health_init();
     esp_board_init();
+    button_init();
     init_camera();
     RFID_start();
+    state_machine_init();
     wifi_init();
     // app_sntp_init();
     // app_aliyun_mqtt_init();
@@ -46,7 +50,7 @@ void app_main(void)
     ws_start("wss://10.167.90.44:8765");
     // update_value();
     // Update_Nearest_Task();
-    event_start();
+    // event_start();
     // clear_all_tasks();
     vTaskDelay(5000 / portTICK_PERIOD_MS);
 
