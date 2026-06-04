@@ -22,6 +22,10 @@ list(APPEND ADD_SRCS
     "./fixpnt/real/stproc.c"
     "./fixpnt/real/subband.c"
     "./fixpnt/real/trigtabs.c"
+    "./fixpnt/real/math_utils.c"
 )
 
-register_component()
+# 注释掉，不加入编译
+# idf_component_register(SRCS ${ADD_SRCS}
+#                     INCLUDE_DIRS ${ADD_INCLUDE})
+# target_compile_options(${COMPONENT_LIB} PRIVATE ${HELIX_MP3_COMPILE_OPTIONS})
