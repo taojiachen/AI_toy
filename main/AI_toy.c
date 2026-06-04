@@ -47,7 +47,7 @@ void app_main(void)
     // app_aliyun_mqtt_init();
     ESP_ERROR_CHECK(app_sr_start());
     ESP_ERROR_CHECK(audio_init());
-    ws_start("wss://10.167.90.44:8765");
+    ws_start("wss://192.168.3.108:8765");
     // update_value();
     // Update_Nearest_Task();
     // event_start();

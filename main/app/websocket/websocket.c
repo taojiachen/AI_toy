@@ -224,7 +224,7 @@ static void ws_event_handler(void *handler_args, esp_event_base_t base,
                 cJSON *type = cJSON_GetObjectItemCaseSensitive(json, "type");
                 if (type && cJSON_IsString(type))
                 {
-                    if (strcmp(type->valuestring, "milestones_anwser_1") == 0)
+                    if (strncmp(type->valuestring, "milestones_answer_", 18) == 0)
                     {
                         cJSON *status = cJSON_GetObjectItemCaseSensitive(json, "status");
                         if (status && cJSON_IsString(status) && strcmp(status->valuestring, "started") == 0)
@@ -232,7 +232,7 @@ static void ws_event_handler(void *handler_args, esp_event_base_t base,
                             state_machine_send_event(EVENT_WS_MILESTONE_STARTED);
                         }
                     }
-                    else if (strcmp(type->valuestring, "anwser_question_photo") == 0)
+                    else if (strcmp(type->valuestring, "answer_question_photo") == 0)
                     {
                         state_machine_send_event(EVENT_WS_ANSWER_PHOTO);
                     }

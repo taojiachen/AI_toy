@@ -8,8 +8,8 @@ typedef enum {
     EVENT_NONE,
     EVENT_RFID_CARD_DETECTED,   // RFID 检测到卡片
     EVENT_KEY_PRESS_RELEASE,    // 按键按下并松开（一次完整操作）
-    EVENT_WS_MILESTONE_STARTED, // 服务器返回 {"type":"milestones_anwser_1","status":"started"}
-    EVENT_WS_ANSWER_PHOTO,      // 服务器返回 {"type":"anwser_question_photo"}
+    EVENT_WS_MILESTONE_STARTED, // 服务器返回 {"type":"milestones_answer_1","status":"started"}
+    EVENT_WS_ANSWER_PHOTO,      // 服务器返回 {"type":"answer_question_photo"}
     EVENT_WS_MILESTONE_COMPLETE,// 服务器返回 {"type":"milestone_complete","milestone":1}
 } state_event_t;
 

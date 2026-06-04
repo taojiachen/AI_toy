@@ -18,8 +18,8 @@ static int question_index = 1;
 // 前向声明
 static void state_machine_task(void *pvParams);
 static void process_event(state_event_t event);
-static void send_anwser_question(int idx);
-static void send_end_anwser_question(int idx);
+static void send_answer_question(int idx);
+static void send_end_answer_question(int idx);
 static void start_recording_for_answer(void);
 static void stop_recording_and_next_question(void);
 static void take_photo_and_send(void);
@@ -66,7 +66,7 @@ static void process_event(state_event_t event)
     switch (current_state) {
     case STATE_IDLE:
         if (event == EVENT_RFID_CARD_DETECTED) {
-            ws_send_text("{\"type\":\"milestones_anwser_1\"}", strlen("{\"type\":\"milestones_anwser_1\"}"));
+            // ws_send_text("{\"type\":\"milestones_answer_1\"}", strlen("{\"type\":\"milestones_answer_1\"}"));
             current_state = STATE_MILESTONE_WAIT_START;
             ESP_LOGI(TAG, "State -> MILESTONE_WAIT_START");
         }
@@ -83,7 +83,7 @@ static void process_event(state_event_t event)
     case STATE_WAIT_KEY_FOR_ANSWER:
         if (event == EVENT_KEY_PRESS_RELEASE) {
             if (!app_sr_is_api_recording()) {
-                send_anwser_question(question_index);
+                send_answer_question(question_index);
                 start_recording_for_answer();
                 current_state = STATE_RECORDING_ANSWER;
                 ESP_LOGI(TAG, "State -> RECORDING_ANSWER (q=%d)", question_index);
@@ -107,7 +107,7 @@ static void process_event(state_event_t event)
             // 服务器要求拍照：停止录音，发送结束消息，切换到拍照等待状态
             app_sr_stop_api_recording();
             // 可选：发送当前问题的结束消息（根据协议决定是否需要）
-            // send_end_anwser_question(question_index);
+            // send_end_answer_question(question_index);
             current_state = STATE_WAIT_KEY_FOR_PHOTO;
             ESP_LOGI(TAG, "State -> WAIT_KEY_FOR_PHOTO (audio stream closed)");
         }
@@ -140,18 +140,18 @@ static void process_event(state_event_t event)
 }
 
 // 辅助函数
-static void send_anwser_question(int idx)
+static void send_answer_question(int idx)
 {
     char buf[64];
-    snprintf(buf, sizeof(buf), "{\"type\":\"anwser_question_%d\"}", idx);
+    snprintf(buf, sizeof(buf), "{\"type\":\"answer_question_%d\"}", idx);
     ws_send_text(buf, strlen(buf));
     ESP_LOGI(TAG, "Sent: %s", buf);
 }
 
-static void send_end_anwser_question(int idx)
+static void send_end_answer_question(int idx)
 {
     char buf[64];
-    snprintf(buf, sizeof(buf), "{\"type\":\"end_anwser_question_%d\"}", idx);
+    snprintf(buf, sizeof(buf), "{\"type\":\"end_answer_question_%d\"}", idx);
     ws_send_text(buf, strlen(buf));
     ESP_LOGI(TAG, "Sent: %s", buf);
 }
@@ -165,7 +165,7 @@ static void start_recording_for_answer(void)
 static void stop_recording_and_next_question(void)
 {
     app_sr_stop_api_recording();
-    send_end_anwser_question(question_index);
+    send_end_answer_question(question_index);
     question_index++;
     current_state = STATE_WAIT_KEY_FOR_ANSWER;
     ESP_LOGI(TAG, "State -> WAIT_KEY_FOR_ANSWER (next question %d)", question_index);

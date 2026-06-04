@@ -53,6 +53,9 @@ static pn532_io_t g_pn532_io_dev;         // 静态全局设备结构体
 static pn532_io_t *g_pn532_io = NULL;     // 全局指针
 static bool g_rfid_running = false;
 static TaskHandle_t rfid_task_handle = NULL;
+static const uint8_t UID_MILESTONE_1[] = {0x5a, 0xc5, 0xda, 0xbc};
+static const uint8_t UID_MILESTONE_2[] = {0xfa, 0x71, 0xda, 0xbc};
+static const uint8_t UID_MILESTONE_3[] = {0x4a, 0xea, 0xd9, 0xbc};
 
 // ==================== 读卡任务 ====================
 void rfid_task(void *pvParameters)
@@ -84,14 +87,30 @@ void rfid_task(void *pvParameters)
                 ESP_LOGI(TAG, "UID Length: %d bytes", uid_length);
                 ESP_LOGI(TAG, "UID Value:");
                 ESP_LOG_BUFFER_HEX_LEVEL(TAG, uid, uid_length, ESP_LOG_INFO);
+    
+                // 根据 UID 发送对应的 milestones 消息
+                if (uid_length == 4) {
+                    if (memcmp(uid, UID_MILESTONE_1, 4) == 0) {
+                        ws_send_text("{\"type\":\"milestones_answer_1\"}", strlen("{\"type\":\"milestones_answer_1\"}"));
+                        ESP_LOGI(TAG, "Sent milestones_answer_1 for UID 5a c5 da bc");
+                    } else if (memcmp(uid, UID_MILESTONE_2, 4) == 0) {
+                        ws_send_text("{\"type\":\"milestones_answer_2\"}", strlen("{\"type\":\"milestones_answer_2\"}"));
+                        ESP_LOGI(TAG, "Sent milestones_answer_2 for UID fa 71 da bc");
+                    } else if (memcmp(uid, UID_MILESTONE_3, 4) == 0) {
+                        ws_send_text("{\"type\":\"milestones_answer_3\"}", strlen("{\"type\":\"milestones_answer_3\"}"));
+                        ESP_LOGI(TAG, "Sent milestones_answer_3 for UID 4a ea d9 bc");
+                    } else {
+                        ESP_LOGW(TAG, "Unknown UID, no milestone message sent");
+                    }
+                }
 
                 state_machine_send_event(EVENT_RFID_CARD_DETECTED);
 
-                // ws_send_text("{\"type\":\"milestones_anwser_1\"}", strlen("{\"type\":\"milestones_anwser_1\"}"));
+                // ws_send_text("{\"type\":\"milestones_answer_1\"}", strlen("{\"type\":\"milestones_answer_1\"}"));
                 // vTaskDelay(pdMS_TO_TICKS(5000));
-                // ws_send_text("{\"type\":\"anwser_question_1\"}", strlen("{\"type\":\"anwser_question_1\"}"));
+                // ws_send_text("{\"type\":\"answer_question_1\"}", strlen("{\"type\":\"answer_question_1\"}"));
                 // vTaskDelay(pdMS_TO_TICKS(10000));
-                // ws_send_text("{\"type\":\"end_anwser_question_1\"}", strlen("{\"type\":\"end_anwser_question_1\"}"));
+                // ws_send_text("{\"type\":\"end_answer_question_1\"}", strlen("{\"type\":\"end_answer_question_1\"}"));
                 // ---------- 读取 NTAG 数据（仅执行一次） ----------
                 err = pn532_in_list_passive_target(g_pn532_io);
                 if (err != ESP_OK) {
