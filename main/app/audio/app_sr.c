@@ -62,7 +62,7 @@ static void audio_feed_task(void *pvParam)
             ESP_LOGE(TAG, "======== bsp_extra_i2s_read failed ==========");
         }
         g_afe_handle->feed(afe_data, audio_buffer);
-        vTaskDelay(pdMS_TO_TICKS(1));
+        // vTaskDelay(pdMS_TO_TICKS(1));
     }
 
     g_afe_handle->destroy(afe_data);
@@ -272,7 +272,7 @@ esp_err_t app_sr_start(void)
 
     ESP_LOGI(TAG, "load wakenet:%s", afe_config->wakenet_model_name);
 
-    BaseType_t ret_val = xTaskCreatePinnedToCore(audio_feed_task, "Feed Task", 6 * 1024, g_afe_data, 4, &audio_feed_task_handle, 1);
+    BaseType_t ret_val = xTaskCreatePinnedToCore(audio_feed_task, "Feed Task", 3 * 1024, g_afe_data, 4, &audio_feed_task_handle, 1);
     ESP_RETURN_ON_FALSE(pdPASS == ret_val, ESP_FAIL, TAG, "Failed create audio feed task");
 
     ret_val = xTaskCreatePinnedToCore(audio_detect_task, "Detect Task", 4 * 1024, g_afe_data, 3, &audio_detect_task_handle, 0);

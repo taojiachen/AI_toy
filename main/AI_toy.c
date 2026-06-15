@@ -9,7 +9,6 @@
 #include "esp_log.h"
 #include "nvs_flash.h"
 #include "esp_mac.h"
-#include "esp_bt.h"
 #include "lwip/err.h"
 #include "lwip/sys.h"
 #include <esp_psram.h>
@@ -44,10 +43,10 @@ void app_main(void)
     state_machine_init();
     wifi_init();
     // app_sntp_init();
-    // app_aliyun_mqtt_init();
+    app_aliyun_mqtt_init();
     ESP_ERROR_CHECK(app_sr_start());
     ESP_ERROR_CHECK(audio_init());
-    ws_start("wss://192.168.3.108:8765");
+    // ws_start("wss://192.168.3.108:8765");
     // update_value();
     // Update_Nearest_Task();
     // event_start();
@@ -56,7 +55,7 @@ void app_main(void)
 
     while (1)
     {
-        vTaskDelay(50000 / portTICK_PERIOD_MS);
+        vTaskDelay(10000 / portTICK_PERIOD_MS);
         // send_camera_image();
         // print_all_tasks();
         // update_value();

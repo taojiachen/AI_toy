@@ -32,7 +32,7 @@ esp_err_t state_machine_init(void)
         return ESP_FAIL;
     }
 
-    xTaskCreate(state_machine_task, "state_machine", 4096, NULL, 5, &sm_task_handle);
+    xTaskCreate(state_machine_task, "state_machine", 3 * 1024, NULL, 5, &sm_task_handle);
     ESP_LOGI(TAG, "State machine initialized, initial state: IDLE");
     return ESP_OK;
 }

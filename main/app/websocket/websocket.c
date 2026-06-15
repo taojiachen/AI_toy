@@ -675,7 +675,7 @@ esp_err_t ws_start(const char *uri)
 
     ESP_LOGI(TAG, "WebSocket客户端启动成功，连接地址: %s", uri);
 
-    xTaskCreatePinnedToCore(ws_send_opus_task, "ws_send_opus_task", 1024 * 4, NULL, 5, &ws_send_opus_task_handle, 1);
+    xTaskCreatePinnedToCore(ws_send_opus_task, "ws_send_opus_task", 6 * 1024, NULL, 5, &ws_send_opus_task_handle, 1);
     return ESP_OK;
 }
 

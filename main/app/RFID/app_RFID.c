@@ -53,10 +53,10 @@ static pn532_io_t g_pn532_io_dev;         // 静态全局设备结构体
 static pn532_io_t *g_pn532_io = NULL;     // 全局指针
 static bool g_rfid_running = false;
 static TaskHandle_t rfid_task_handle = NULL;
-static const uint8_t UID_MILESTONE_1[] = {0x5a, 0xc5, 0xda, 0xbc};
+// static const uint8_t UID_MILESTONE_1[] = {0x5a, 0xc5, 0xda, 0xbc};
 static const uint8_t UID_MILESTONE_2[] = {0xfa, 0x71, 0xda, 0xbc};
 static const uint8_t UID_MILESTONE_3[] = {0x4a, 0xea, 0xd9, 0xbc};
-
+static const uint8_t UID_MILESTONE_1[] = {0xf4, 0x21, 0xcf, 0xec};
 // ==================== 读卡任务 ====================
 void rfid_task(void *pvParameters)
 {
@@ -254,7 +254,7 @@ void RFID_start(void)
         ESP_LOGW(TAG, "RFID scan task already running");
         return;
     }
-    xTaskCreate(rfid_task, "rfid_task", 4096, NULL, 5, &rfid_task_handle);
+    xTaskCreate(rfid_task, "rfid_task", 3 * 1024, NULL, 5, &rfid_task_handle);
 }
 
 // ==================== RFID 停止 ====================
