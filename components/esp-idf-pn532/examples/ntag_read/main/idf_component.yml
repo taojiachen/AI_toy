@@ -1,0 +1,3 @@
+dependencies:
+  garag/esp-idf-pn532:
+    version: '*'
