@@ -34,7 +34,6 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     health_init();
     esp_board_init();
-    spi_bus_init();
     RFID_start();
     wifi_init();
     app_sntp_init();
