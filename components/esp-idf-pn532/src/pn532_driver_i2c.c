@@ -87,42 +87,41 @@ esp_err_t pn532_init_io(pn532_io_handle_t io_handle)
 
     pn532_i2c_driver_config *driver_config = (pn532_i2c_driver_config *)io_handle->driver_data;
 
+    // 如果之前已经创建过总线，先释放
     if (driver_config->i2c_bus_handle != NULL && driver_config->bus_created) {
         pn532_release_io(io_handle);
     }
 
     driver_config->bus_created = false;
-    if (driver_config->scl != GPIO_NUM_NC && driver_config->sda != GPIO_NUM_NC) {
-        // create new master bus
-        i2c_master_bus_config_t conf = {
-                //Open the I2C Bus
-                .clk_source = I2C_CLK_SRC_DEFAULT,
-                .i2c_port = driver_config->i2c_port_number,
-                .sda_io_num = driver_config->sda,
-                .scl_io_num = driver_config->scl,
-                .glitch_ignore_cnt = 7,
-                .flags.enable_internal_pullup = true,
-        };
-        if (i2c_new_master_bus(&conf, &driver_config->i2c_bus_handle) != ESP_OK) {
-            ESP_LOGE(TAG, "i2c_new_master_bus() failed");
-            return ESP_FAIL;
-        }
-        driver_config->bus_created = true;
-    }
-    else {
-        // try to get bus handle
-        if (i2c_master_get_bus_handle(driver_config->i2c_port_number, &driver_config->i2c_bus_handle) != ESP_OK) {
-            ESP_LOGE(TAG, "i2c_master_get_bus_handle() failed");
-            return ESP_FAIL;
-        }
+
+    // 必须提供有效的 SDA 和 SCL 引脚来创建 I2C 总线
+    if (driver_config->scl == GPIO_NUM_NC || driver_config->sda == GPIO_NUM_NC) {
+        ESP_LOGE(TAG, "Invalid SDA/SCL pins: must be set to real GPIO numbers, not GPIO_NUM_NC");
+        return ESP_ERR_INVALID_ARG;
     }
 
-    i2c_device_config_t dev_cfg;
-    dev_cfg.dev_addr_length = I2C_ADDR_BIT_LEN_7;
-    dev_cfg.device_address = PN532_I2C_RAW_ADDRESS; // 7-bit address without RW flag
-    dev_cfg.scl_speed_hz = 100000;
-    dev_cfg.scl_wait_us = 200000;
+    // 创建新的 I2C 主总线
+    i2c_master_bus_config_t conf = {
+        .clk_source = I2C_CLK_SRC_DEFAULT,
+        .i2c_port = driver_config->i2c_port_number,
+        .sda_io_num = driver_config->sda,
+        .scl_io_num = driver_config->scl,
+        .glitch_ignore_cnt = 7,
+        .flags.enable_internal_pullup = true,
+    };
+    if (i2c_new_master_bus(&conf, &driver_config->i2c_bus_handle) != ESP_OK) {
+        ESP_LOGE(TAG, "i2c_new_master_bus() failed");
+        return ESP_FAIL;
+    }
+    driver_config->bus_created = true;
 
+    // 在总线上添加 PN532 设备
+    i2c_device_config_t dev_cfg = {
+        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+        .device_address = PN532_I2C_RAW_ADDRESS,   // 7-bit 地址，不含 R/W 位
+        .scl_speed_hz = 100000,
+        .scl_wait_us = 200000,
+    };
     if (i2c_master_bus_add_device(driver_config->i2c_bus_handle, &dev_cfg, &driver_config->i2c_dev_handle) != ESP_OK) {
         ESP_LOGE(TAG, "i2c_master_bus_add_device() failed");
         return ESP_FAIL;
@@ -175,7 +174,6 @@ esp_err_t pn532_read(pn532_io_handle_t io_handle, uint8_t *read_buffer, size_t r
 {
     static uint8_t rx_buffer[256];
 
-
     TickType_t start_ticks = xTaskGetTickCount();
     TickType_t timeout_ticks = (xfer_timeout_ms > 0) ? pdMS_TO_TICKS(xfer_timeout_ms) : portMAX_DELAY;
     TickType_t elapsed_ticks = 0;
@@ -201,13 +199,12 @@ esp_err_t pn532_read(pn532_io_handle_t io_handle, uint8_t *read_buffer, size_t r
     if (result != ESP_OK)
         return result;
 
-    // check status byte if PN532 is ready
+    // 检查状态字节，确认 PN532 已准备好
     if (rx_buffer[0] != 0x01) {
-        // PN532 not ready
         return ESP_ERR_TIMEOUT;
     }
 
-    // skip status byte and copy only response data
+    // 跳过状态字节，只复制响应数据
     memcpy(read_buffer, rx_buffer + 1, read_size);
     return result;
 }
