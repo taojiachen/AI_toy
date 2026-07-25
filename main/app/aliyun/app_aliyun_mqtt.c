@@ -36,8 +36,6 @@
 
 static const char *TAG = "APP_ALIYUN_MQTT";
 
-static bool shadow_subscribed = false; // 确保只订阅一次
-
 esp_mqtt_client_handle_t client;
 
 // 调用此函数主动请求设备影子
@@ -69,17 +67,20 @@ static esp_err_t app_mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
     {
     case MQTT_EVENT_CONNECTED:
         ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
-        // char *msg_id;
-        // msg_id = esp_mqtt_client_subscribe(client, CONFIG_AliYun_SUBSCRIBE_TOPIC_USER_GET, 0);
-        // ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
-        if (!shadow_subscribed)
-        {
-            // 订阅影子 get topic
-            int msg_id = esp_mqtt_client_subscribe(client, CONFIG_AliYun_SHADOW_GET_TOPIC, 1);
-            ESP_LOGI(TAG, "Subscribed to shadow topic %s, msg_id=%d", CONFIG_AliYun_SHADOW_GET_TOPIC, msg_id);
-            shadow_subscribed = true;
-        }
 
+        // 订阅设备影子响应 Topic
+        int msg_id = esp_mqtt_client_subscribe(client, CONFIG_AliYun_SHADOW_GET_TOPIC, 1);
+        ESP_LOGI(TAG, "Subscribed to shadow get topic: %s, msg_id=%d", CONFIG_AliYun_SHADOW_GET_TOPIC, msg_id);
+
+        // 订阅自定义用户 get Topic（手机可向该 Topic 下发指令）
+        msg_id = esp_mqtt_client_subscribe(client, CONFIG_AliYun_SUBSCRIBE_TOPIC_USER_GET, 1);
+        ESP_LOGI(TAG, "Subscribed to user get topic: %s, msg_id=%d", CONFIG_AliYun_SUBSCRIBE_TOPIC_USER_GET, msg_id);
+
+        // 订阅属性上报回复 Topic（用于接收平台对属性上报的应答）
+        msg_id = esp_mqtt_client_subscribe(client, CONFIG_AliYun_PUBLISH_TOPIC_USER_POST_REPLY, 1);
+        ESP_LOGI(TAG, "Subscribed to post reply topic: %s, msg_id=%d", CONFIG_AliYun_PUBLISH_TOPIC_USER_POST_REPLY, msg_id);
+
+        // 请求一次设备影子（获取最新状态）
         request_device_shadow();
         break;
     case MQTT_EVENT_DISCONNECTED:
